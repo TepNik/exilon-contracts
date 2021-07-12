@@ -1,0 +1,8 @@
+build/
+node_modules/
+.env
+output.sol
+bin/
+test.json
+.DS_store
+yarn.lock
