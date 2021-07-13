@@ -5,8 +5,8 @@
     "main": "index.js",
     "scripts": {
         "test": "npm run prettier && npm run solhint && truffle compile && mocha --recursive --exit --timeout 5000000",
-        "solhint": "solhint -f table ./contracts/**/*.sol",
-        "prettier": "prettier --write contracts/**/*.sol"
+        "solhint": "solhint -f table ./**/*.sol ./**/**/*.sol ./**/**/**/*.sol",
+        "prettier": "prettier --write ./**/*.sol ./**/**/*.sol ./**/**/**/*.sol"
     },
     "keywords": [],
     "author": "",

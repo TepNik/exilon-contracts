@@ -22,8 +22,7 @@ library FixedPoint {
 
     uint8 public constant RESOLUTION = 112;
     uint256 public constant Q112 = 0x10000000000000000000000000000; // 2**112
-    uint256 private constant Q224 =
-        0x100000000000000000000000000000000000000000000000000000000; // 2**224
+    uint256 private constant Q224 = 0x100000000000000000000000000000000000000000000000000000000; // 2**224
     uint256 private constant LOWER_MASK = 0xffffffffffffffffffffffffffff; // decimal of UQ*x112 (lower 112 bits)
 
     // encode a uint112 as a UQ112x112
@@ -48,26 +47,15 @@ library FixedPoint {
 
     // multiply a UQ112x112 by a uint, returning a UQ144x112
     // reverts on overflow
-    function mul(uq112x112 memory self, uint256 y)
-        internal
-        pure
-        returns (uq144x112 memory)
-    {
+    function mul(uq112x112 memory self, uint256 y) internal pure returns (uq144x112 memory) {
         uint256 z = 0;
-        require(
-            y == 0 || (z = self._x * y) / y == self._x,
-            "FixedPoint::mul: overflow"
-        );
+        require(y == 0 || (z = self._x * y) / y == self._x, "FixedPoint::mul: overflow");
         return uq144x112(z);
     }
 
     // multiply a UQ112x112 by an int and decode, returning an int
     // reverts on overflow
-    function muli(uq112x112 memory self, int256 y)
-        internal
-        pure
-        returns (int256)
-    {
+    function muli(uq112x112 memory self, int256 y) internal pure returns (int256) {
         uint256 z = FullMath.mulDiv(self._x, uint256(y < 0 ? -y : y), Q112);
         require(z < 2**255, "FixedPoint::muli: overflow");
         return y < 0 ? -int256(z) : int256(z);
@@ -98,11 +86,10 @@ library FixedPoint {
         require(upper <= type(uint112).max, "FixedPoint::muluq: upper overflow");
 
         // this cannot exceed 256 bits, all values are 224 bits
-        uint256 sum =
-            uint256(upper << RESOLUTION) +
-                uppers_lowero +
-                uppero_lowers +
-                (lower >> RESOLUTION);
+        uint256 sum = uint256(upper << RESOLUTION) +
+            uppers_lowero +
+            uppero_lowers +
+            (lower >> RESOLUTION);
 
         // so the cast does not overflow
         require(sum <= type(uint224).max, "FixedPoint::muluq: sum overflow");
@@ -155,11 +142,7 @@ library FixedPoint {
     // take the reciprocal of a UQ112x112
     // reverts on overflow
     // lossy
-    function reciprocal(uq112x112 memory self)
-        internal
-        pure
-        returns (uq112x112 memory)
-    {
+    function reciprocal(uq112x112 memory self) internal pure returns (uq112x112 memory) {
         require(self._x != 0, "FixedPoint::reciprocal: reciprocal of zero");
         require(self._x != 1, "FixedPoint::reciprocal: overflow");
         return uq112x112(uint224(Q224 / self._x));
@@ -167,11 +150,7 @@ library FixedPoint {
 
     // square root of a UQ112x112
     // lossy between 0/1 and 40 bits
-    function sqrt(uq112x112 memory self)
-        internal
-        pure
-        returns (uq112x112 memory)
-    {
+    function sqrt(uq112x112 memory self) internal pure returns (uq112x112 memory) {
         if (self._x <= type(uint144).max) {
             return uq112x112(uint224(Babylonian.sqrt(uint256(self._x) << 112)));
         }

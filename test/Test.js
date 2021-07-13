@@ -42,12 +42,12 @@ const PancakePair = contract.fromArtifact('PancakePair');
 const PancakeRouter = contract.fromArtifact('PancakeRouter');
 const WETH = contract.fromArtifact('WETH');
 
-const TestContract = contract.fromArtifact('TestContract');
+const Exilon = contract.fromArtifact('Exilon');
 
 let PancakeFactoryInst;
 let PancakeRouterInst;
 let WETHInst;
-let TestContractInst;
+let ExilonInst;
 
 describe('Test', () => {
     const [
@@ -59,11 +59,12 @@ describe('Test', () => {
         PancakeFactoryInst = await PancakeFactory.new(feeToSetter);
         PancakeRouterInst = await PancakeRouter.new(PancakeFactoryInst.address, WETHInst.address);
 
-        TestContractInst = await TestContract.new();
+        ExilonInst = await Exilon.new(
+            PancakeRouterInst.address
+        );
     })
 
     it("Deploy test", async () => {
-        console.log("Address =", TestContractInst.address);
     })
 
 
