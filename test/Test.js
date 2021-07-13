@@ -14,6 +14,10 @@ require('dotenv').config();
 const {
 } = process.env;
 
+const NAME = "Exilon";
+const SYMBOL = "XLN";
+const TOTAL_SUPPLY = new BN("2500000000000");
+
 const MINUS_ONE = new BN(-1);
 const ZERO = new BN(0);
 const ONE = new BN(1);
@@ -48,11 +52,15 @@ let PancakeFactoryInst;
 let PancakeRouterInst;
 let WETHInst;
 let ExilonInst;
+let ExilonDexPairInst;
 
 describe('Test', () => {
     const [
-        feeToSetter
+        feeToSetter,
+        exilonAdmin
     ] = accounts;
+
+    let defaultAdminRole;
 
     beforeEach(async () => {
         WETHInst = await WETH.new();
@@ -60,11 +68,28 @@ describe('Test', () => {
         PancakeRouterInst = await PancakeRouter.new(PancakeFactoryInst.address, WETHInst.address);
 
         ExilonInst = await Exilon.new(
-            PancakeRouterInst.address
+            PancakeRouterInst.address,
+            { from: exilonAdmin }
         );
+
+        ExilonDexPairInst = await PancakePair.at(
+            await PancakeFactoryInst.getPair(WETHInst.address, ExilonInst.address)
+        );
+
+        defaultAdminRole = await ExilonInst.DEFAULT_ADMIN_ROLE();
     })
 
     it("Deploy test", async () => {
+        expect(await ExilonInst.dexRouter()).to.be.equals(PancakeRouterInst.address);
+        expect(await ExilonInst.dexPair()).to.be.equals(ExilonDexPairInst.address);
+
+        expect(await ExilonInst.name()).to.be.equals(NAME);
+        expect(await ExilonInst.symbol()).to.be.equals(SYMBOL);
+        expect(await ExilonInst.decimals()).to.be.bignumber.equals(DECIMALS);
+
+        expect(await ExilonInst.totalSupply()).to.be.bignumber.equals(TOTAL_SUPPLY.mul(ONE_TOKEN));
+
+        expect(await ExilonInst.hasRole(defaultAdminRole, exilonAdmin)).to.be.true;
     })
 
 
