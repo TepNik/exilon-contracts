@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 import "./pancake-swap/interfaces/IPancakeFactory.sol";
+import "./pancake-swap/interfaces/IPancakePair.sol";
 
 // TODO: Permit function
 
@@ -25,7 +26,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
     // private data
 
-    uint8 private _decimals = 18;
+    uint8 private constant _DECIMALS = 18;
 
     string private _name = "Exilon";
     string private _symbol = "XLN";
@@ -37,10 +38,10 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     // "external" balances for fixed addresses
     mapping(address => uint256) private _fixedBalances;
 
-    uint256 private _totalExternalSupply = 2500 * 10**9 * 10**_decimals;
-    uint256 private _notFixedTotalExternalSupply = _totalExternalSupply;
+    uint256 private constant _TOTAL_EXTERNAL_SUPPLY = 2500 * 10**9 * 10**_DECIMALS;
+    uint256 private _notFixedExternalTotalSupply;
 
-    uint256 private _notFixedBalancesInternalTotalSupply = (type(uint256).max - (type(uint256).max % _totalExternalSupply));
+    uint256 private _notFixedInternalTotalSupply = (type(uint256).max - (type(uint256).max % _TOTAL_EXTERNAL_SUPPLY));
 
     // 0 - not added; 1 - added
     uint256 private _isLpAdded;
@@ -79,16 +80,43 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         _excludedFromDistribution.add(_dexPair);
         _excludedFromDistribution.add(address(0xdead));
 
-        uint256 totalAmount = _totalExternalSupply;
-        // 80% to liquidity
+        uint256 totalAmount = _TOTAL_EXTERNAL_SUPPLY;
+        // 80% to liquidity and 20% to private sale and team
         uint256 amountToLiquidity = totalAmount * 8 / 10;
-        // 20% to private sale and team
-        uint256 amountToDistribute = totalAmount - amountToLiquidity;
 
-        // TODO: add changing of _notFixedBalances and _fixedBalances
+        // _fixedBalances[address(this)] only used for adding liquidity
+        _fixedBalances[address(this)] = amountToLiquidity;
+        // add changes to transfer amountToLiquidity amount from NotFixed to Fixed account
+        // because LP pair is exluded from distribution
+        uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
+        uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
+        uint256 notFixedAmount = amountToLiquidity * notFixedInternalTotalSupply / notFixedExternalTotalSupply;
 
-        emit Transfer(address(0), _dexPair, amountToLiquidity);
-        // TODO: add events of transfer to toDistribute
+        notFixedExternalTotalSupply -= amountToLiquidity;
+        _notFixedExternalTotalSupply = notFixedExternalTotalSupply;
+
+        notFixedInternalTotalSupply -= notFixedAmount;
+        _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
+
+        // notFixedInternalTotalSupply amount will be distributed between toDistribute addresses
+        // it is addresses for team and private sale
+        require(toDistribute.length > 0, "Exilon: At least one address to distribute");
+        uint256 restAmount = notFixedInternalTotalSupply;
+        for(uint256 i = 0; i < toDistribute.length; ++i) {
+            uint256 amountToDistribute;
+            if (i < toDistribute.length - 1) {
+                amountToDistribute = notFixedInternalTotalSupply / toDistribute.length;
+                restAmount -= amountToDistribute;
+            } else {
+                amountToDistribute = restAmount;
+            }
+
+            _notFixedBalances[toDistribute[i]] = amountToDistribute;
+
+            uint256 fixedAmountDistributed = amountToDistribute * notFixedExternalTotalSupply / notFixedInternalTotalSupply;
+            emit Transfer(address(0), toDistribute[i], fixedAmountDistributed);
+        }
+        emit Transfer(address(0), address(this), amountToLiquidity);
     }
 
     /* receive() external payable {
@@ -97,7 +125,18 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     /* EXTERNAL FUNCTIONS */
 
     function addLiquidity() external payable onlyAdmin {
-        revert("Exilon: Not implemented");
+        uint256 amountToLiquidity = _fixedBalances[address(this)];
+        delete _fixedBalances[address(this)];
+
+        address _dexPair = dexPair;
+        _fixedBalances[_dexPair] = amountToLiquidity;
+
+        (bool success, ) = _dexPair.call{value: msg.value}(new bytes(0));
+        require(success, "Exilon: ETH transfer failed");
+
+        IPancakePair(_dexPair).mint(_msgSender());
+
+        emit Transfer(address(this), _dexPair, amountToLiquidity);
     }
 
     function approve(address spender, uint256 amount) external virtual override returns (bool) {
@@ -126,46 +165,46 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         return true;
     }
 
-    function exludeFromFeesDistribution(address user) external onlyAdmin {
+    function exludeFromFeesDistribution(address user) external onlyWhenLiquidityAdded onlyAdmin {
         require(_excludedFromDistribution.add(user) == true, "Exilon: Already exluded");
 
         uint256 notFixedUserBalance = _notFixedBalances[user];
         if (notFixedUserBalance > 0) {
-            uint256 notFixedTotalExternalSupply = _notFixedTotalExternalSupply;
-            uint256 notFixedBalancesInternalTotalSupply = _notFixedBalancesInternalTotalSupply;
+            uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
+            uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
 
-            uint256 fixedUserBalance = notFixedTotalExternalSupply * notFixedUserBalance / notFixedBalancesInternalTotalSupply;
+            uint256 fixedUserBalance = notFixedExternalTotalSupply * notFixedUserBalance / notFixedInternalTotalSupply;
 
             _fixedBalances[user] = fixedUserBalance;
             delete _notFixedBalances[user];
 
-            notFixedTotalExternalSupply -= fixedUserBalance;
-            _notFixedTotalExternalSupply = notFixedTotalExternalSupply;
+            notFixedExternalTotalSupply -= fixedUserBalance;
+            _notFixedExternalTotalSupply = notFixedExternalTotalSupply;
 
-            notFixedBalancesInternalTotalSupply -= notFixedUserBalance;
-            _notFixedBalancesInternalTotalSupply = notFixedBalancesInternalTotalSupply;
+            notFixedInternalTotalSupply -= notFixedUserBalance;
+            _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
         }
     }
 
-    function includeToFeesDistributon(address user) external onlyAdmin {
+    function includeToFeesDistributon(address user) external onlyWhenLiquidityAdded onlyAdmin {
         require(user != address(0xdead) && user != dexPair, "Exilon: Wrong address");
         require(_excludedFromDistribution.remove(user) == true, "Exilon: Already included");
 
         uint256 fixedUserBalance = _fixedBalances[user];
         if (fixedUserBalance > 0) {
-            uint256 notFixedTotalExternalSupply = _notFixedTotalExternalSupply;
-            uint256 notFixedBalancesInternalTotalSupply = _notFixedBalancesInternalTotalSupply;
+            uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
+            uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
 
-            uint256 notFixedUserBalance = (notFixedTotalExternalSupply + fixedUserBalance) * notFixedBalancesInternalTotalSupply / notFixedTotalExternalSupply;
+            uint256 notFixedUserBalance = (notFixedExternalTotalSupply + fixedUserBalance) * notFixedInternalTotalSupply / notFixedExternalTotalSupply;
 
             _notFixedBalances[user] = notFixedUserBalance;
             delete _fixedBalances[user];
 
-            notFixedTotalExternalSupply += fixedUserBalance;
-            _notFixedTotalExternalSupply = notFixedTotalExternalSupply;
+            notFixedExternalTotalSupply += fixedUserBalance;
+            _notFixedExternalTotalSupply = notFixedExternalTotalSupply;
 
-            notFixedBalancesInternalTotalSupply += notFixedUserBalance;
-            _notFixedBalancesInternalTotalSupply = notFixedBalancesInternalTotalSupply;
+            notFixedInternalTotalSupply += notFixedUserBalance;
+            _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
         }
     }
 
@@ -178,18 +217,18 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     }
 
     function decimals() external view virtual override returns (uint8) {
-        return _decimals;
+        return _DECIMALS;
     }
 
     function totalSupply() external view virtual override returns (uint256) {
-        return _totalExternalSupply;
+        return _TOTAL_EXTERNAL_SUPPLY;
     }
 
     function balanceOf(address account) external view virtual override returns (uint256) {
         if (_excludedFromDistribution.contains(account) == true) {
             return _fixedBalances[account];
         } else {
-            return _notFixedBalances[account] * _notFixedTotalExternalSupply / _notFixedBalancesInternalTotalSupply;
+            return _notFixedBalances[account] * _notFixedExternalTotalSupply / _notFixedInternalTotalSupply;
         }
     }
 
@@ -245,10 +284,10 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
             _fixedBalances[to] += amount;
         } else if (isFromFixed == true && isToFixed == false) {
-            uint256 notFixedTotalExternalSupply = _notFixedTotalExternalSupply;
-            uint256 notFixedBalancesInternalTotalSupply = _notFixedBalancesInternalTotalSupply;
+            uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
+            uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
 
-            uint256 notFixedAmount = (notFixedTotalExternalSupply + amount) * notFixedBalancesInternalTotalSupply / notFixedTotalExternalSupply;
+            uint256 notFixedAmount = (notFixedExternalTotalSupply + amount) * notFixedInternalTotalSupply / notFixedExternalTotalSupply;
 
             _notFixedBalances[to] += notFixedAmount;
             uint256 fixedBalanceFrom = _fixedBalances[from];
@@ -257,16 +296,16 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 _fixedBalances[from] = (fixedBalanceFrom - amount);
             }
 
-            notFixedTotalExternalSupply += amount;
-            _notFixedTotalExternalSupply = notFixedTotalExternalSupply;
+            notFixedExternalTotalSupply += amount;
+            _notFixedExternalTotalSupply = notFixedExternalTotalSupply;
 
-            notFixedBalancesInternalTotalSupply += notFixedAmount;
-            _notFixedBalancesInternalTotalSupply = notFixedBalancesInternalTotalSupply;
+            notFixedInternalTotalSupply += notFixedAmount;
+            _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
         } else if (isFromFixed == false && isToFixed == true) {
-            uint256 notFixedTotalExternalSupply = _notFixedTotalExternalSupply;
-            uint256 notFixedBalancesInternalTotalSupply = _notFixedBalancesInternalTotalSupply;
+            uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
+            uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
 
-            uint256 notFixedAmount = amount * notFixedBalancesInternalTotalSupply / notFixedTotalExternalSupply;
+            uint256 notFixedAmount = amount * notFixedInternalTotalSupply / notFixedExternalTotalSupply;
 
             uint256 notFixedBalanceFrom = _notFixedBalances[from];
             require(notFixedBalanceFrom >= notFixedAmount, "Exilon: Transfer amount exceeds balance");
@@ -275,13 +314,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             }
             _fixedBalances[to] += amount;
 
-            notFixedTotalExternalSupply -= amount;
-            _notFixedTotalExternalSupply = notFixedTotalExternalSupply;
+            notFixedExternalTotalSupply -= amount;
+            _notFixedExternalTotalSupply = notFixedExternalTotalSupply;
 
-            notFixedBalancesInternalTotalSupply -= notFixedAmount;
-            _notFixedBalancesInternalTotalSupply = notFixedBalancesInternalTotalSupply;
+            notFixedInternalTotalSupply -= notFixedAmount;
+            _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
         } else if (isFromFixed == false && isToFixed == false) {
-            uint256 notFixedAmount = amount * _notFixedBalancesInternalTotalSupply / _notFixedTotalExternalSupply;
+            uint256 notFixedAmount = amount * _notFixedInternalTotalSupply / _notFixedExternalTotalSupply;
 
             uint256 notFixedBalanceFrom = _notFixedBalances[from];
             require(notFixedBalanceFrom >= notFixedAmount, "Exilon: Transfer amount exceeds balance");
