@@ -30,7 +30,7 @@ library PancakeOracleLibrary {
 
         // if time has elapsed since the last update on the pair, mock the accumulated price values
         (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast) = IPancakePair(pair)
-        .getReserves();
+            .getReserves();
         if (blockTimestampLast != blockTimestamp) {
             // subtraction overflow is desired
             uint32 timeElapsed = blockTimestamp - blockTimestampLast;

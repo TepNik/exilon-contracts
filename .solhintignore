@@ -1,3 +1,4 @@
 ./node_modules/
 ./migrations/
 ./contracts/pancake-swap/
+./contracts/Migrations.sol

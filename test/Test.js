@@ -14,10 +14,6 @@ require('dotenv').config();
 const {
 } = process.env;
 
-const NAME = "Exilon";
-const SYMBOL = "XLN";
-const TOTAL_SUPPLY = new BN("2500000000000");
-
 const MINUS_ONE = new BN(-1);
 const ZERO = new BN(0);
 const ONE = new BN(1);
@@ -35,6 +31,10 @@ const EIGHTEEN = new BN(18);
 const DECIMALS = EIGHTEEN;
 const ONE_TOKEN = TEN.pow(DECIMALS);
 const ONE_ETH = TEN.pow(EIGHTEEN);
+
+const NAME = "Exilon";
+const SYMBOL = "XLN";
+const TOTAL_SUPPLY = (new BN("2500000000000")).mul(ONE_TOKEN);
 
 const minEthLiquidity = ONE_ETH.mul(TEN).mul(TEN);
 const maxEthLiquidity = ONE_ETH.mul(TEN).mul(TEN).mul(TEN).mul(TEN);
@@ -54,10 +54,18 @@ let WETHInst;
 let ExilonInst;
 let ExilonDexPairInst;
 
-describe('Test', () => {
+describe('Exilon test', () => {
     const [
         feeToSetter,
-        exilonAdmin
+        exilonAdmin,
+        distributionAddress1,
+        distributionAddress2,
+        distributionAddress3,
+        distributionAddress4,
+        user1,
+        user2,
+        user3,
+        user4
     ] = accounts;
 
     let defaultAdminRole;
@@ -69,6 +77,12 @@ describe('Test', () => {
 
         ExilonInst = await Exilon.new(
             PancakeRouterInst.address,
+            [
+                distributionAddress1,
+                distributionAddress2,
+                distributionAddress3,
+                distributionAddress4
+            ],
             { from: exilonAdmin }
         );
 
@@ -87,9 +101,209 @@ describe('Test', () => {
         expect(await ExilonInst.symbol()).to.be.equals(SYMBOL);
         expect(await ExilonInst.decimals()).to.be.bignumber.equals(DECIMALS);
 
-        expect(await ExilonInst.totalSupply()).to.be.bignumber.equals(TOTAL_SUPPLY.mul(ONE_TOKEN));
+        expect(await ExilonInst.totalSupply()).to.be.bignumber.equals(TOTAL_SUPPLY);
 
         expect(await ExilonInst.hasRole(defaultAdminRole, exilonAdmin)).to.be.true;
+
+        let amountToLiqidity = TOTAL_SUPPLY.mul(EIGHT).div(TEN);
+        expect(await ExilonInst.balanceOf(ExilonInst.address)).to.be.bignumber.equals(amountToLiqidity);
+
+        let amountToDistribution = TOTAL_SUPPLY.sub(amountToLiqidity);
+        isNear(await ExilonInst.balanceOf(distributionAddress1), amountToDistribution.div(FOUR));
+        isNear(await ExilonInst.balanceOf(distributionAddress2), amountToDistribution.div(FOUR));
+        isNear(await ExilonInst.balanceOf(distributionAddress3), amountToDistribution.div(FOUR));
+        isNear(await ExilonInst.balanceOf(distributionAddress4), amountToDistribution.div(FOUR));
+    })
+
+    it("Add first liqiudity", async () => {
+        await expectRevert(
+            ExilonInst.addLiquidity({ from: user1 }),
+            "Exilon: Sender is not admin"
+        );
+        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+        await expectRevert(
+            ExilonInst.addLiquidity({ from: exilonAdmin }),
+            "Exilon: Only once"
+        );
+
+        expect(await ExilonInst.balanceOf(ExilonDexPairInst.address)).to.be.bignumber.equals(TOTAL_SUPPLY.mul(EIGHT).div(TEN));
+        expect(await WETHInst.balanceOf(ExilonDexPairInst.address)).to.be.bignumber.equals(ONE_ETH);
+
+        let lpTotalSupply = await ExilonDexPairInst.totalSupply();
+        let minimumLiqiudity = await ExilonDexPairInst.MINIMUM_LIQUIDITY();
+        expect(await ExilonDexPairInst.balanceOf(exilonAdmin)).to.be.bignumber.equals(lpTotalSupply.sub(minimumLiqiudity));
+    })
+
+    it("Test addLiquidity restrictions", async () => {
+        await expectRevert(
+            ExilonInst.transfer(distributionAddress2, ZERO, { from: distributionAddress1 }),
+            "Exilon: Liquidity not added"
+        );
+        await expectRevert(
+            ExilonInst.transferFrom(distributionAddress2, distributionAddress1, ZERO, { from: distributionAddress1 }),
+            "Exilon: Liquidity not added"
+        );
+
+        await expectRevert(
+            ExilonInst.exludeFromFeesDistribution(distributionAddress1, { from: exilonAdmin }),
+            "Exilon: Liquidity not added"
+        );
+        await expectRevert(
+            ExilonInst.includeToFeesDistributon(distributionAddress1, { from: exilonAdmin }),
+            "Exilon: Liquidity not added"
+        );
+    })
+
+    it("Test transfers between not fixed addresses", async () => {
+        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+
+        // test transfer function
+        // test trasnfer of full balance
+        let balance1Before = await ExilonInst.balanceOf(distributionAddress1);
+        let balance2Before = await ExilonInst.balanceOf(distributionAddress2);
+
+        await ExilonInst.transfer(distributionAddress2, balance1Before, { from: distributionAddress1 });
+
+        let balance1After = await ExilonInst.balanceOf(distributionAddress1);
+        let balance2After = await ExilonInst.balanceOf(distributionAddress2);
+
+        expect(balance1After).to.be.bignumber.equals(ZERO);
+        isNear(balance2After.sub(balance2Before), balance1Before);
+
+        // test transfer of half balance
+        balance1Before = await ExilonInst.balanceOf(distributionAddress1);
+        balance2Before = await ExilonInst.balanceOf(distributionAddress2);
+
+        await ExilonInst.transfer(distributionAddress1, balance2Before.div(TWO), { from: distributionAddress2 });
+
+        balance1After = await ExilonInst.balanceOf(distributionAddress1);
+        balance2After = await ExilonInst.balanceOf(distributionAddress2);
+
+        isNear(balance1After, balance2Before.div(TWO));
+        isNear(balance2After, balance2Before.sub(balance2Before.div(TWO)));
+
+        // test transferFrom function
+        // test trasnfer of full balance
+        balance1Before = await ExilonInst.balanceOf(distributionAddress1);
+        balance2Before = await ExilonInst.balanceOf(distributionAddress2);
+
+        await expectRevert(
+            ExilonInst.transferFrom(distributionAddress1, distributionAddress2, balance1Before, { from: distributionAddress2 }),
+            "Exilon: Amount exceeds allowance"
+        );
+        await ExilonInst.approve(distributionAddress2, balance1Before.sub(ONE), { from: distributionAddress1 });
+        await expectRevert(
+            ExilonInst.transferFrom(distributionAddress1, distributionAddress2, balance1Before, { from: distributionAddress2 }),
+            "Exilon: Amount exceeds allowance"
+        );
+        await ExilonInst.approve(distributionAddress2, balance1Before, { from: distributionAddress1 });
+        await ExilonInst.transferFrom(distributionAddress1, distributionAddress2, balance1Before, { from: distributionAddress2 });
+
+        balance1After = await ExilonInst.balanceOf(distributionAddress1);
+        balance2After = await ExilonInst.balanceOf(distributionAddress2);
+
+        expect(balance1After).to.be.bignumber.equals(ZERO);
+        isNear(balance2After.sub(balance2Before), balance1Before);
+
+        // test transfer of half balance
+        balance1Before = await ExilonInst.balanceOf(distributionAddress1);
+        balance2Before = await ExilonInst.balanceOf(distributionAddress2);
+
+        await expectRevert(
+            ExilonInst.transferFrom(distributionAddress2, distributionAddress1, balance2Before.div(TWO), { from: distributionAddress1 }),
+            "Exilon: Amount exceeds allowance"
+        );
+        await ExilonInst.approve(distributionAddress1, balance2Before.div(TWO).sub(ONE), { from: distributionAddress2 });
+        await expectRevert(
+            ExilonInst.transferFrom(distributionAddress2, distributionAddress1, balance2Before.div(TWO), { from: distributionAddress1 }),
+            "Exilon: Amount exceeds allowance"
+        );
+        await ExilonInst.approve(distributionAddress1, balance2Before.div(TWO), { from: distributionAddress2 });
+        await ExilonInst.transferFrom(distributionAddress2, distributionAddress1, balance2Before.div(TWO), { from: distributionAddress1 });
+
+        balance1After = await ExilonInst.balanceOf(distributionAddress1);
+        balance2After = await ExilonInst.balanceOf(distributionAddress2);
+
+        isNear(balance1After, balance2Before.div(TWO));
+        isNear(balance2After, balance2Before.sub(balance2Before.div(TWO)));
+    })
+
+    it("Test transfers between fixed addresses", async () => {
+        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+
+        // make them fixed
+        await ExilonInst.exludeFromFeesDistribution(distributionAddress1, { from: exilonAdmin });
+        await ExilonInst.exludeFromFeesDistribution(distributionAddress2, { from: exilonAdmin });
+
+        // test transfer function
+        // test trasnfer of full balance
+        let balance1Before = await ExilonInst.balanceOf(distributionAddress1);
+        let balance2Before = await ExilonInst.balanceOf(distributionAddress2);
+
+        await ExilonInst.transfer(distributionAddress2, balance1Before, { from: distributionAddress1 });
+
+        let balance1After = await ExilonInst.balanceOf(distributionAddress1);
+        let balance2After = await ExilonInst.balanceOf(distributionAddress2);
+
+        expect(balance1After).to.be.bignumber.equals(ZERO);
+        expect(balance2After.sub(balance2Before)).to.be.bignumber.equals(balance1Before);
+
+        // test transfer of half balance
+        balance1Before = await ExilonInst.balanceOf(distributionAddress1);
+        balance2Before = await ExilonInst.balanceOf(distributionAddress2);
+
+        await ExilonInst.transfer(distributionAddress1, balance2Before.div(TWO), { from: distributionAddress2 });
+
+        balance1After = await ExilonInst.balanceOf(distributionAddress1);
+        balance2After = await ExilonInst.balanceOf(distributionAddress2);
+
+        expect(balance1After).to.be.bignumber.equals(balance2Before.div(TWO));
+        expect(balance2After).to.be.bignumber.equals(balance2Before.sub(balance2Before.div(TWO)));
+
+        // test transferFrom function
+        // test trasnfer of full balance
+        balance1Before = await ExilonInst.balanceOf(distributionAddress1);
+        balance2Before = await ExilonInst.balanceOf(distributionAddress2);
+
+        await expectRevert(
+            ExilonInst.transferFrom(distributionAddress1, distributionAddress2, balance1Before, { from: distributionAddress2 }),
+            "Exilon: Amount exceeds allowance"
+        );
+        await ExilonInst.approve(distributionAddress2, balance1Before.sub(ONE), { from: distributionAddress1 });
+        await expectRevert(
+            ExilonInst.transferFrom(distributionAddress1, distributionAddress2, balance1Before, { from: distributionAddress2 }),
+            "Exilon: Amount exceeds allowance"
+        );
+        await ExilonInst.approve(distributionAddress2, balance1Before, { from: distributionAddress1 });
+        await ExilonInst.transferFrom(distributionAddress1, distributionAddress2, balance1Before, { from: distributionAddress2 });
+
+        balance1After = await ExilonInst.balanceOf(distributionAddress1);
+        balance2After = await ExilonInst.balanceOf(distributionAddress2);
+
+        expect(balance1After).to.be.bignumber.equals(ZERO);
+        expect(balance2After.sub(balance2Before)).to.be.bignumber.equals(balance1Before);
+
+        // test transfer of half balance
+        balance1Before = await ExilonInst.balanceOf(distributionAddress1);
+        balance2Before = await ExilonInst.balanceOf(distributionAddress2);
+
+        await expectRevert(
+            ExilonInst.transferFrom(distributionAddress2, distributionAddress1, balance2Before.div(TWO), { from: distributionAddress1 }),
+            "Exilon: Amount exceeds allowance"
+        );
+        await ExilonInst.approve(distributionAddress1, balance2Before.div(TWO).sub(ONE), { from: distributionAddress2 });
+        await expectRevert(
+            ExilonInst.transferFrom(distributionAddress2, distributionAddress1, balance2Before.div(TWO), { from: distributionAddress1 }),
+            "Exilon: Amount exceeds allowance"
+        );
+        await ExilonInst.approve(distributionAddress1, balance2Before.div(TWO), { from: distributionAddress2 });
+        await ExilonInst.transferFrom(distributionAddress2, distributionAddress1, balance2Before.div(TWO), { from: distributionAddress1 });
+
+        balance1After = await ExilonInst.balanceOf(distributionAddress1);
+        balance2After = await ExilonInst.balanceOf(distributionAddress2);
+
+        expect(balance1After).to.be.bignumber.equals(balance2Before.div(TWO));
+        expect(balance2After).to.be.bignumber.equals(balance2Before.sub(balance2Before.div(TWO)));
     })
 
 
@@ -240,6 +454,10 @@ describe('Test', () => {
         }
     }
 })
+
+function isNear(x, y) {
+    expect(x.sub(y).abs()).to.be.bignumber.below(TWO);
+}
 
 function getRandomBN() {
     const random = randomBytes(32);
