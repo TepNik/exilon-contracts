@@ -32,6 +32,8 @@ const DECIMALS = EIGHT;
 const ONE_TOKEN = TEN.pow(DECIMALS);
 const ONE_ETH = TEN.pow(EIGHTEEN);
 
+const DEADLINE = new BN("10000000000000000000");
+
 const NAME = "Exilon";
 const SYMBOL = "XLN";
 const TOTAL_SUPPLY = (new BN("2500000000000")).mul(ONE_TOKEN);
@@ -109,10 +111,10 @@ describe('Exilon test', () => {
         expect(await ExilonInst.balanceOf(ExilonInst.address)).to.be.bignumber.equals(amountToLiqidity);
 
         let amountToDistribution = TOTAL_SUPPLY.sub(amountToLiqidity);
-        isNear(await ExilonInst.balanceOf(distributionAddress1), amountToDistribution.div(FOUR));
-        isNear(await ExilonInst.balanceOf(distributionAddress2), amountToDistribution.div(FOUR));
-        isNear(await ExilonInst.balanceOf(distributionAddress3), amountToDistribution.div(FOUR));
-        isNear(await ExilonInst.balanceOf(distributionAddress4), amountToDistribution.div(FOUR));
+        expect(await ExilonInst.balanceOf(distributionAddress1)).to.be.bignumber.equals(amountToDistribution.div(FOUR));
+        expect(await ExilonInst.balanceOf(distributionAddress2)).to.be.bignumber.equals(amountToDistribution.div(FOUR));
+        expect(await ExilonInst.balanceOf(distributionAddress3)).to.be.bignumber.equals(amountToDistribution.div(FOUR));
+        expect(await ExilonInst.balanceOf(distributionAddress4)).to.be.bignumber.equals(amountToDistribution.div(FOUR));
     })
 
     it("Add first liqiudity", async () => {
@@ -191,7 +193,7 @@ describe('Exilon test', () => {
         let balance2After = await ExilonInst.balanceOf(distributionAddress2);
 
         expect(balance1After).to.be.bignumber.equals(ZERO);
-        isNear(balance2After.sub(balance2Before), balance1Before);
+        expect(balance2After.sub(balance2Before)).to.be.bignumber.equals(balance1Before);
 
         // test transfer of half balance
         balance1Before = await ExilonInst.balanceOf(distributionAddress1);
@@ -202,8 +204,8 @@ describe('Exilon test', () => {
         balance1After = await ExilonInst.balanceOf(distributionAddress1);
         balance2After = await ExilonInst.balanceOf(distributionAddress2);
 
-        isNear(balance1After, balance2Before.div(TWO));
-        isNear(balance2After, balance2Before.sub(balance2Before.div(TWO)));
+        expect(balance1After).to.be.bignumber.equals(balance2Before.div(TWO));
+        expect(balance2After).to.be.bignumber.equals(balance2Before.sub(balance2Before.div(TWO)));
     })
 
     it("Test transfers between fixed addresses", async () => {
@@ -266,7 +268,7 @@ describe('Exilon test', () => {
         let balance2After = await ExilonInst.balanceOf(distributionAddress2);
 
         expect(balance1After).to.be.bignumber.equals(ZERO);
-        isNear(balance2After.sub(balance2Before), balance1Before);
+        expect(balance2After.sub(balance2Before)).to.be.bignumber.equals(balance1Before);
 
         // test trasnfer of full balance from not fixed to fixed
         balance1Before = await ExilonInst.balanceOf(distributionAddress1);
@@ -282,7 +284,7 @@ describe('Exilon test', () => {
         balance2After = await ExilonInst.balanceOf(distributionAddress2);
 
         expect(balance2After).to.be.bignumber.equals(ZERO);
-        isNear(balance1After.sub(balance1Before), balance2Before);
+        expect(balance1After.sub(balance1Before)).to.be.bignumber.equals(balance2Before);
 
         // give back balance to distributionAddress2
         await ExilonInst.transfer(distributionAddress2, (await ExilonInst.balanceOf(distributionAddress1)).div(TWO), { from: distributionAddress1 });
@@ -297,7 +299,7 @@ describe('Exilon test', () => {
         balance2After = await ExilonInst.balanceOf(distributionAddress2);
 
         expect(balance1After).to.be.bignumber.equals(balance1Before.sub(balance1Before.div(TWO)));
-        isNear(balance2After.sub(balance2Before), balance1Before.div(TWO));
+        expect(balance2After.sub(balance2Before)).to.be.bignumber.equals(balance1Before.div(TWO));
 
         // test transfer of half balance from not fixed to fixed
         balance1Before = await ExilonInst.balanceOf(distributionAddress1);
@@ -309,7 +311,7 @@ describe('Exilon test', () => {
         balance2After = await ExilonInst.balanceOf(distributionAddress2);
 
         expect(balance1After.sub(balance1Before)).to.be.bignumber.equals(balance2Before.div(TWO));
-        isNear(balance2Before.sub(balance2After), balance2Before.div(TWO));
+        expect(balance2Before.sub(balance2After)).to.be.bignumber.equals(balance2Before.div(TWO));
     })
 
     it("Test exludeFromFeesDistribution and includeToFeesDistribution", async () => {
@@ -345,7 +347,46 @@ describe('Exilon test', () => {
 
         balanceAfter = await ExilonInst.balanceOf(distributionAddress1);
 
-        isNear(balanceAfter, balanceBefore);
+        expect(balanceAfter).to.be.bignumber.equals(balanceBefore);
+    })
+
+    it("Check buy restrictions on start", async () => {
+        let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+        let blocknumber = new BN(tx.receipt.blockNumber);
+        let step = new BN("60");
+        for(let i = 0; i < 10; ++i) {
+            let index = new BN(i);
+            let newBlocknumber = blocknumber.add(step.mul(index));
+            await time.advanceBlockTo(newBlocknumber);
+
+            await expectRevert(
+                PancakeRouterInst.swapExactETHForTokens(
+                    ZERO,
+                    [WETHInst.address, ExilonInst.address],
+                    exilonAdmin,
+                    DEADLINE,
+                    { value: ONE_ETH.div(TEN).mul(index.add(ONE)).add(ONE) }
+                ),
+                "Pancake: TRANSFER_FAILED"
+            );
+            await PancakeRouterInst.swapExactETHForTokens(
+                ZERO,
+                [WETHInst.address, ExilonInst.address],
+                exilonAdmin,
+                DEADLINE,
+                { value: ONE_ETH.div(TEN).mul(index.add(ONE)) }
+            );
+        }
+
+        await time.advanceBlockTo(blocknumber.add(step.mul(new BN(11))));
+
+        await PancakeRouterInst.swapExactETHForTokens(
+            ZERO,
+            [WETHInst.address, ExilonInst.address],
+            exilonAdmin,
+            DEADLINE,
+            { value: ONE_ETH.mul(TEN) }
+        );
     })
 
 
@@ -497,9 +538,9 @@ describe('Exilon test', () => {
     }
 })
 
-function isNear(x, y) {
-    expect(x.sub(y).abs()).to.be.bignumber.below(TWO);
-}
+/* function isNear(x, y) {
+    expect(x.sub(y).abs()).to.be.bignumber.below(ONE);
+} */
 
 function getRandomBN() {
     const random = randomBytes(32);

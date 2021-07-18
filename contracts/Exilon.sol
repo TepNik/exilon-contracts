@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
+import "./pancake-swap/libraries/PancakeLibrary.sol";
+
 import "./pancake-swap/interfaces/IPancakeRouter02.sol";
 import "./pancake-swap/interfaces/IPancakeFactory.sol";
 import "./pancake-swap/interfaces/IPancakePair.sol";
@@ -40,13 +42,18 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
     //solhint-disable-next-line var-name-mixedcase
     uint256 private immutable _TOTAL_EXTERNAL_SUPPLY;
-    uint256 private _notFixedExternalTotalSupply;
 
+    // axioms between _notFixedExternalTotalSupply and _notFixedInternalTotalSupply:
+    // 1) _notFixedInternalTotalSupply % (_notFixedExternalTotalSupply ^ 2) == 0
+    // 2) _notFixedInternalTotalSupply * _notFixedExternalTotalSupply <= type(uint256).max
+    uint256 private _notFixedExternalTotalSupply;
     uint256 private _notFixedInternalTotalSupply;
 
     // 0 - not added; 1 - added
     uint256 private _isLpAdded;
     address private _weth;
+
+    uint256 private _startBlock;
 
     // addresses that exluded from distribution of fees from transfers (have fixed balances)
     EnumerableSet.AddressSet private _excludedFromDistribution;
@@ -94,8 +101,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         // add changes to transfer amountToLiquidity amount from NotFixed to Fixed account
         // because LP pair is exluded from distribution
         uint256 notFixedExternalTotalSupply = totalAmount;
-        uint256 notFixedInternalTotalSupply = (type(uint256).max -
-            (type(uint256).max % totalAmount)) / totalAmount;
+
+        // div by totalAmount is needed because
+        // notFixedExternalTotalSupply * notFixedInternalTotalSupply
+        // must fit into uint256
+        uint256 notFixedInternalTotalSupply = type(uint256).max / totalAmount;
+        // make (internal % external ^ 2) == 0
+        //notFixedInternalTotalSupply -= (notFixedInternalTotalSupply % totalAmount);
 
         uint256 notFixedAmount = (amountToLiquidity * notFixedInternalTotalSupply) /
             notFixedExternalTotalSupply;
@@ -137,6 +149,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     function addLiquidity() external payable onlyAdmin {
         require(_isLpAdded == 0, "Exilon: Only once");
         _isLpAdded = 1;
+        _startBlock = block.number;
 
         uint256 amountToLiquidity = _fixedBalances[address(this)];
         delete _fixedBalances[address(this)];
@@ -304,6 +317,9 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     ) private {
         bool isFromFixed = _excludedFromDistribution.contains(from);
         bool isToFixed = _excludedFromDistribution.contains(to);
+
+        _checkBuyRestrictionsOnStart(from);
+
         if (isFromFixed == true && isToFixed == true) {
             uint256 fixedBalanceFrom = _fixedBalances[from];
             require(fixedBalanceFrom >= amount, "Exilon: Amount exceeds balance");
@@ -312,8 +328,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             }
 
             _fixedBalances[to] += amount;
-
-            emit Transfer(from, to, amount);
         } else if (isFromFixed == true && isToFixed == false) {
             uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
             uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
@@ -333,13 +347,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
             notFixedInternalTotalSupply += notFixedAmount;
             _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
-
-            emit Transfer(
-                from,
-                to,
-                // it may not be equal to amount because of divs
-                (notFixedAmount * notFixedExternalTotalSupply) / notFixedInternalTotalSupply
-            );
         } else if (isFromFixed == false && isToFixed == true) {
             uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
             uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
@@ -359,8 +366,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
             notFixedInternalTotalSupply -= notFixedAmount;
             _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
-
-            emit Transfer(from, to, amount);
         } else if (isFromFixed == false && isToFixed == false) {
             uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
             uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
@@ -374,13 +379,68 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 _notFixedBalances[from] = (notFixedBalanceFrom - notFixedAmount);
             }
             _notFixedBalances[to] += notFixedAmount;
-
-            emit Transfer(
-                from,
-                to,
-                // it may not be equal to amount because of divs
-                (notFixedAmount * notFixedExternalTotalSupply) / notFixedInternalTotalSupply
-            );
         }
+
+        emit Transfer(from, to, amount);
+    }
+
+    function _checkBuyRestrictionsOnStart(address from) private view {
+        // only on buy tokens
+        address _dexPair = dexPair;
+        if (from != _dexPair) {
+            return;
+        }
+
+        uint256 blocknumber = block.number - _startBlock;
+
+        // [0; 60) - 0.1 BNB
+        // [60; 120) - 0.2 BNB
+        // [120; 180) - 0.3 BNB
+        // [180; 240) - 0.4 BNB
+        // [240; 300) - 0.5 BNB
+        // [300; 360) - 0.6 BNB
+        // [360; 420) - 0.7 BNB
+        // [420; 480) - 0.8 BNB
+        // [480; 540) - 0.9 BNB
+        // [540; 600) - 1 BNB
+
+        if (blocknumber < 60) {
+            _checkBuyAmountCeil(_dexPair, 1 ether / 10);
+        } else if (blocknumber < 120) {
+            _checkBuyAmountCeil(_dexPair, 2 ether / 10);
+        } else if (blocknumber < 180) {
+            _checkBuyAmountCeil(_dexPair, 3 ether / 10);
+        } else if (blocknumber < 240) {
+            _checkBuyAmountCeil(_dexPair, 4 ether / 10);
+        } else if (blocknumber < 300) {
+            _checkBuyAmountCeil(_dexPair, 5 ether / 10);
+        } else if (blocknumber < 360) {
+            _checkBuyAmountCeil(_dexPair, 6 ether / 10);
+        } else if (blocknumber < 420) {
+            _checkBuyAmountCeil(_dexPair, 7 ether / 10);
+        } else if (blocknumber < 480) {
+            _checkBuyAmountCeil(_dexPair, 8 ether / 10);
+        } else if (blocknumber < 540) {
+            _checkBuyAmountCeil(_dexPair, 9 ether / 10);
+        } else if (blocknumber < 600) {
+            _checkBuyAmountCeil(_dexPair, 1 ether);
+        }
+    }
+
+    function _checkBuyAmountCeil(address _dexPair, uint256 amount) private view {
+        address token = address(this);
+        address weth = _weth;
+
+        uint256 reserveWeth;
+        (uint256 reserve0, uint256 reserve1, ) = IPancakePair(_dexPair).getReserves();
+        (address token0, ) = PancakeLibrary.sortTokens(token, weth);
+        if (token0 == token) {
+            reserveWeth = reserve1;
+        } else {
+            reserveWeth = reserve0;
+        }
+
+        uint256 trueWethBalance = IERC20(weth).balanceOf(_dexPair);
+        require(trueWethBalance - reserveWeth <= amount, "Exilon: To big buy amount");
     }
 }
