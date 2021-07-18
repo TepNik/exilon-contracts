@@ -26,10 +26,10 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
     // private data
 
-    uint8 private constant _DECIMALS = 18;
+    uint8 private constant _DECIMALS = 8;
 
-    string private _name = "Exilon";
-    string private _symbol = "XLN";
+    string private constant _NAME = "Exilon";
+    string private constant _SYMBOL = "XLN";
 
     mapping(address => mapping(address => uint256)) private _allowances;
 
@@ -186,8 +186,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         return true;
     }
 
-    function exludeFromFeesDistribution(address user) external onlyWhenLiquidityAdded onlyAdmin {
-        require(_excludedFromDistribution.add(user) == true, "Exilon: Already exluded");
+    function excludeFromFeesDistribution(address user) external onlyWhenLiquidityAdded onlyAdmin {
+        require(_excludedFromDistribution.add(user) == true, "Exilon: Already excluded");
 
         uint256 notFixedUserBalance = _notFixedBalances[user];
         if (notFixedUserBalance > 0) {
@@ -208,7 +208,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         }
     }
 
-    function includeToFeesDistributon(address user) external onlyWhenLiquidityAdded onlyAdmin {
+    function includeToFeesDistribution(address user) external onlyWhenLiquidityAdded onlyAdmin {
         require(user != address(0xdead) && user != dexPair, "Exilon: Wrong address");
         require(_excludedFromDistribution.remove(user) == true, "Exilon: Already included");
 
@@ -217,8 +217,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
             uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
 
-            uint256 notFixedUserBalance = ((notFixedExternalTotalSupply + fixedUserBalance) *
-                notFixedInternalTotalSupply) / notFixedExternalTotalSupply;
+            uint256 notFixedUserBalance = (fixedUserBalance * notFixedInternalTotalSupply) /
+                notFixedExternalTotalSupply;
 
             _notFixedBalances[user] = notFixedUserBalance;
             delete _fixedBalances[user];
@@ -232,11 +232,11 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     }
 
     function name() external view virtual override returns (string memory) {
-        return _name;
+        return _NAME;
     }
 
     function symbol() external view virtual override returns (string memory) {
-        return _symbol;
+        return _SYMBOL;
     }
 
     function decimals() external view virtual override returns (uint8) {
@@ -316,8 +316,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
             uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
 
-            uint256 notFixedAmount = ((notFixedExternalTotalSupply + amount) *
-                notFixedInternalTotalSupply) / notFixedExternalTotalSupply;
+            uint256 notFixedAmount = (amount * notFixedInternalTotalSupply) /
+                notFixedExternalTotalSupply;
 
             _notFixedBalances[to] += notFixedAmount;
             uint256 fixedBalanceFrom = _fixedBalances[from];
