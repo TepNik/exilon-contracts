@@ -181,6 +181,10 @@ describe('Exilon test', () => {
         let balance1Before = await ExilonInst.balanceOf(distributionAddress1);
         let balance2Before = await ExilonInst.balanceOf(distributionAddress2);
 
+        await expectRevert(
+            ExilonInst.transfer(distributionAddress2, balance1Before.add(ONE), { from: distributionAddress1 }),
+            "Exilon: Amount exceeds balance"
+        );
         await ExilonInst.transfer(distributionAddress2, balance1Before, { from: distributionAddress1 });
 
         let balance1After = await ExilonInst.balanceOf(distributionAddress1);
@@ -215,6 +219,10 @@ describe('Exilon test', () => {
         let balance1Before = await ExilonInst.balanceOf(distributionAddress1);
         let balance2Before = await ExilonInst.balanceOf(distributionAddress2);
 
+        await expectRevert(
+            ExilonInst.transfer(distributionAddress2, balance1Before.add(ONE), { from: distributionAddress1 }),
+            "Exilon: Amount exceeds balance"
+        );
         await ExilonInst.transfer(distributionAddress2, balance1Before, { from: distributionAddress1 });
 
         let balance1After = await ExilonInst.balanceOf(distributionAddress1);
@@ -248,6 +256,10 @@ describe('Exilon test', () => {
         let balance1Before = await ExilonInst.balanceOf(distributionAddress1);
         let balance2Before = await ExilonInst.balanceOf(distributionAddress2);
 
+        await expectRevert(
+            ExilonInst.transfer(distributionAddress2, balance1Before.add(ONE), { from: distributionAddress1 }),
+            "Exilon: Amount exceeds balance"
+        );
         await ExilonInst.transfer(distributionAddress2, balance1Before, { from: distributionAddress1 });
 
         let balance1After = await ExilonInst.balanceOf(distributionAddress1);
@@ -260,6 +272,10 @@ describe('Exilon test', () => {
         balance1Before = await ExilonInst.balanceOf(distributionAddress1);
         balance2Before = await ExilonInst.balanceOf(distributionAddress2);
 
+        await expectRevert(
+            ExilonInst.transfer(distributionAddress1, balance2Before.add(ONE), { from: distributionAddress2 }),
+            "Exilon: Amount exceeds balance"
+        );
         await ExilonInst.transfer(distributionAddress1, balance2Before, { from: distributionAddress2 });
 
         balance1After = await ExilonInst.balanceOf(distributionAddress1);
