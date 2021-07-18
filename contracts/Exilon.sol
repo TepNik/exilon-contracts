@@ -312,6 +312,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             }
 
             _fixedBalances[to] += amount;
+
+            emit Transfer(from, to, amount);
         } else if (isFromFixed == true && isToFixed == false) {
             uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
             uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
@@ -331,6 +333,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
             notFixedInternalTotalSupply += notFixedAmount;
             _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
+
+            emit Transfer(
+                from,
+                to,
+                // it may not be equal to amount because of divs
+                (notFixedAmount * notFixedExternalTotalSupply) / notFixedInternalTotalSupply
+            );
         } else if (isFromFixed == false && isToFixed == true) {
             uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
             uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
@@ -350,9 +359,14 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
             notFixedInternalTotalSupply -= notFixedAmount;
             _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
+
+            emit Transfer(from, to, amount);
         } else if (isFromFixed == false && isToFixed == false) {
-            uint256 notFixedAmount = (amount * _notFixedInternalTotalSupply) /
-                _notFixedExternalTotalSupply;
+            uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
+            uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
+
+            uint256 notFixedAmount = (amount * notFixedInternalTotalSupply) /
+                notFixedExternalTotalSupply;
 
             uint256 notFixedBalanceFrom = _notFixedBalances[from];
             require(notFixedBalanceFrom >= notFixedAmount, "Exilon: Amount exceeds balance");
@@ -360,6 +374,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 _notFixedBalances[from] = (notFixedBalanceFrom - notFixedAmount);
             }
             _notFixedBalances[to] += notFixedAmount;
+
+            emit Transfer(
+                from,
+                to,
+                // it may not be equal to amount because of divs
+                (notFixedAmount * notFixedExternalTotalSupply) / notFixedInternalTotalSupply
+            );
         }
     }
 }
