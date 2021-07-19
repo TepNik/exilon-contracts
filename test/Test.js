@@ -406,6 +406,66 @@ describe('Exilon test', () => {
         );
     })
 
+    it("Test buy and sell without fees and notFixed account", async () => {
+        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN).mul(TEN) });
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
+
+        await ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin });
+
+        await checkBuy(
+            distributionAddress1,
+            ONE_ETH.div(TEN),
+            [ZERO, ZERO, ZERO]
+        );
+    })
+
+    it("Test buy and sell without fees and fixed account", async () => {
+        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN).mul(TEN) });
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
+
+        await ExilonInst.excludeFromPayingFees(distributionAddress5, { from: exilonAdmin });
+
+        await checkBuy(
+            distributionAddress5,
+            ONE_ETH.div(TEN),
+            [ZERO, ZERO, ZERO]
+        );
+    })
+
+    it("Test buy and sell with fees and notFixed account", async () => {
+        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN).mul(TEN) });
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
+
+        await checkBuy(
+            distributionAddress1,
+            ONE_ETH.div(TEN),
+            [EIGHT, ONE, ONE]
+        );
+    })
+
+    it("Test buy and sell with fees and fixed account", async () => {
+        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN).mul(TEN) });
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
+
+        await checkBuy(
+            distributionAddress5,
+            ONE_ETH.div(TEN),
+            [EIGHT, ONE, ONE]
+        );
+    })
+
     it("Test exludeFromFeesDistribution and includeToFeesDistribution", async () => {
         await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
         await makeFixedAddress(distributionAddress5);
@@ -499,6 +559,95 @@ describe('Exilon test', () => {
 
         fixedAddresses = removeFromArray(fixedAddresses, user);
         notFixedAddresses.push(user);
+    }
+
+    async function checkBuy(from, amount, feePercentages) {
+        let balanceFromBefore = await ExilonInst.balanceOf(from);
+        let balanceDexPairBefore = await ExilonInst.balanceOf(ExilonDexPairInst.address);
+        let feeAmountBefore = await ExilonInst.feeAmountInTokens();
+        let burnAddressBalanceBefore = await ExilonInst.balanceOf(BURN_ADDRESS);
+
+        let fixedAddressesBalancesBefore = [];
+        for (let i = 0; i < fixedAddresses.length; ++i) {
+            fixedAddressesBalancesBefore[i] = await ExilonInst.balanceOf(fixedAddresses[i]);
+        }
+
+        let notFixedAddressesBalancesBefore = [];
+        let notFixedBalancesBefore = ZERO;
+        for (let i = 0; i < notFixedAddresses.length; ++i) {
+            notFixedAddressesBalancesBefore[i] = await ExilonInst.balanceOf(notFixedAddresses[i]);
+            notFixedBalancesBefore = notFixedBalancesBefore.add(notFixedAddressesBalancesBefore[i]);
+        }
+
+        let path = [WETHInst.address, ExilonInst.address];
+        let amountsOut = await PancakeRouterInst.getAmountsOut(amount, path);
+        let tx = await PancakeRouterInst.swapExactETHForTokensSupportingFeeOnTransferTokens(
+            ZERO,
+            path,
+            from,
+            DEADLINE,
+            { from: from, value: amount }
+        );
+        let gasAmount = tx.receipt.gasUsed;
+        console.log("Gas for swap =", gasAmount);
+
+        let balanceFromAfter = await ExilonInst.balanceOf(from);
+        let balanceDexPairAfter = await ExilonInst.balanceOf(ExilonDexPairInst.address);
+        let feeAmountAfter = await ExilonInst.feeAmountInTokens();
+        let burnAddressBalanceAfter = await ExilonInst.balanceOf(BURN_ADDRESS);
+
+        let fixedAddressesBalancesAfter = [];
+        for (let i = 0; i < fixedAddresses.length; ++i) {
+            fixedAddressesBalancesAfter[i] = await ExilonInst.balanceOf(fixedAddresses[i]);
+        }
+
+        let notFixedAddressesBalancesAfter = [];
+        let notFixedBalancesAfter = ZERO;
+        for (let i = 0; i < notFixedAddresses.length; ++i) {
+            notFixedAddressesBalancesAfter[i] = await ExilonInst.balanceOf(notFixedAddresses[i]);
+            notFixedBalancesAfter = notFixedBalancesAfter.add(notFixedAddressesBalancesAfter[i]);
+        }
+
+        let lpAmount = amountsOut[1].mul(feePercentages[0]).div(new BN("100"));
+        let burnAmount = amountsOut[1].mul(feePercentages[1]).div(new BN("100"));
+        let distributionAmount = amountsOut[1].mul(feePercentages[2]).div(new BN("100"));
+        let transferAmount = amountsOut[1].sub(lpAmount).sub(burnAmount).sub(distributionAmount);
+
+        isNear(balanceDexPairBefore.sub(balanceDexPairAfter), amountsOut[1]);
+        isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount);
+        isNear(burnAddressBalanceAfter.sub(burnAddressBalanceBefore), burnAmount);
+
+        for (let i = 0; i < fixedAddresses.length; ++i) {
+            if (fixedAddresses[i] != from && fixedAddresses[i] != ExilonDexPairInst.address && fixedAddresses[i] != BURN_ADDRESS) {
+                expect(fixedAddressesBalancesAfter[i].sub(fixedAddressesBalancesBefore[i])).to.be.bignumber.equals(ZERO);
+            }
+        }
+
+        let isFromNotFixed = notFixedAddresses.indexOf(from) != -1;
+        if (isFromNotFixed) {
+            isNear(notFixedBalancesAfter.sub(notFixedBalancesBefore), amountsOut[1].sub(lpAmount).sub(burnAmount));
+        } else if (!isFromNotFixed) {
+            isNear(notFixedBalancesAfter.sub(notFixedBalancesBefore), distributionAmount);
+        }
+
+        if (isFromNotFixed == false) {
+            isNear(balanceFromAfter.sub(balanceFromBefore), transferAmount);
+        }
+
+        for (let i = 0; i < notFixedAddresses.length; ++i) {
+            let amountToGet = notFixedAddressesBalancesAfter[i].mul(distributionAmount).div(notFixedBalancesAfter);
+            if (notFixedAddresses[i] != from) {
+                isNear(
+                    notFixedAddressesBalancesAfter[i].sub(notFixedAddressesBalancesBefore[i]),
+                    amountToGet
+                );
+            } else if (notFixedAddresses[i] == from) {
+                isNear(
+                    notFixedAddressesBalancesAfter[i].sub(notFixedAddressesBalancesBefore[i]),
+                    amountToGet.add(transferAmount)
+                );
+            }
+        }
     }
 
     async function checkTransfer(from, to, amount, feePercentages) {
