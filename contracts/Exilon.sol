@@ -16,6 +16,7 @@ import "./pancake-swap/interfaces/IWETH.sol";
 
 // Maded by TepNik
 // https://www.linkedin.com/in/nikita-tepelin/
+
 contract Exilon is IERC20, IERC20Metadata, AccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -26,12 +27,14 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     IPancakeRouter02 public immutable dexRouter;
     address public immutable dexPair;
 
+    uint256 public feeAmountInTokens;
+
     // private data
 
     uint8 private constant _DECIMALS = 8;
 
     string private constant _NAME = "Exilon";
-    string private constant _SYMBOL = "XLN";
+    string private constant _SYMBOL = "XLNT";
 
     mapping(address => mapping(address => uint256)) private _allowances;
 
@@ -57,6 +60,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
     // addresses that exluded from distribution of fees from transfers (have fixed balances)
     EnumerableSet.AddressSet private _excludedFromDistribution;
+    EnumerableSet.AddressSet private _excludedFromPayingFees;
+    EnumerableSet.AddressSet private _noRestrictionsOnSell;
 
     /* MODIFIERS */
 
@@ -244,6 +249,16 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         }
     }
 
+    function excludeFromPayingFees(address user) external onlyWhenLiquidityAdded onlyAdmin {
+        require(user != address(0xdead) && user != dexPair, "Exilon: Wrong address");
+        require(_excludedFromPayingFees.add(user) == true, "Exilon: Already excluded");
+    }
+
+    function includeToPayingFees(address user) external onlyWhenLiquidityAdded onlyAdmin {
+        require(user != address(0xdead) && user != dexPair, "Exilon: Wrong address");
+        require(_excludedFromPayingFees.remove(user) == true, "Exilon: Already included");
+    }
+
     function name() external view virtual override returns (string memory) {
         return _NAME;
     }
@@ -292,6 +307,30 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         return _excludedFromDistribution.contains(user);
     }
 
+    function excludedFromPayingFeesLen() external view returns (uint256) {
+        return _excludedFromPayingFees.length();
+    }
+
+    function getExcludedFromPayingFeesAt(uint256 index) external view returns (address) {
+        return _excludedFromPayingFees.at(index);
+    }
+
+    function isExcludedFromPayingFees(address user) external view returns (bool) {
+        return _excludedFromPayingFees.contains(user);
+    }
+
+    function noRestrictionsOnSellLen() external view returns (uint256) {
+        return _noRestrictionsOnSell.length();
+    }
+
+    function getNoRestrictionsOnSellAt(uint256 index) external view returns (address) {
+        return _noRestrictionsOnSell.at(index);
+    }
+
+    function isNoRestrictionsOnSell(address user) external view returns (bool) {
+        return _noRestrictionsOnSell.contains(user);
+    }
+
     /* PUBLIC FUNCTIONS */
 
     /* INTERNAL FUNCTIONS */
@@ -318,75 +357,217 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         bool isFromFixed = _excludedFromDistribution.contains(from);
         bool isToFixed = _excludedFromDistribution.contains(to);
 
-        _checkBuyRestrictionsOnStart(from);
+        uint256[3] memory fees;
+        bool needToCheckFromBalance;
+        {
+            address _dexPair = dexPair;
+            address weth = _weth;
 
-        if (isFromFixed == true && isToFixed == true) {
-            uint256 fixedBalanceFrom = _fixedBalances[from];
-            require(fixedBalanceFrom >= amount, "Exilon: Amount exceeds balance");
-            unchecked {
-                _fixedBalances[from] = (fixedBalanceFrom - amount);
-            }
-
-            _fixedBalances[to] += amount;
-        } else if (isFromFixed == true && isToFixed == false) {
-            uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
-            uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
-
-            uint256 notFixedAmount = (amount * notFixedInternalTotalSupply) /
-                notFixedExternalTotalSupply;
-
-            _notFixedBalances[to] += notFixedAmount;
-            uint256 fixedBalanceFrom = _fixedBalances[from];
-            require(fixedBalanceFrom >= amount, "Exilon: Amount exceeds balance");
-            unchecked {
-                _fixedBalances[from] = (fixedBalanceFrom - amount);
-            }
-
-            notFixedExternalTotalSupply += amount;
-            _notFixedExternalTotalSupply = notFixedExternalTotalSupply;
-
-            notFixedInternalTotalSupply += notFixedAmount;
-            _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
-        } else if (isFromFixed == false && isToFixed == true) {
-            uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
-            uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
-
-            uint256 notFixedAmount = (amount * notFixedInternalTotalSupply) /
-                notFixedExternalTotalSupply;
-
-            uint256 notFixedBalanceFrom = _notFixedBalances[from];
-            require(notFixedBalanceFrom >= notFixedAmount, "Exilon: Amount exceeds balance");
-            unchecked {
-                _notFixedBalances[from] = (notFixedBalanceFrom - notFixedAmount);
-            }
-            _fixedBalances[to] += amount;
-
-            notFixedExternalTotalSupply -= amount;
-            _notFixedExternalTotalSupply = notFixedExternalTotalSupply;
-
-            notFixedInternalTotalSupply -= notFixedAmount;
-            _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
-        } else if (isFromFixed == false && isToFixed == false) {
-            uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
-            uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
-
-            uint256 notFixedAmount = (amount * notFixedInternalTotalSupply) /
-                notFixedExternalTotalSupply;
-
-            uint256 notFixedBalanceFrom = _notFixedBalances[from];
-            require(notFixedBalanceFrom >= notFixedAmount, "Exilon: Amount exceeds balance");
-            unchecked {
-                _notFixedBalances[from] = (notFixedBalanceFrom - notFixedAmount);
-            }
-            _notFixedBalances[to] += notFixedAmount;
+            _checkBuyRestrictionsOnStart(from, _dexPair, weth);
+            (fees, needToCheckFromBalance) = _getFeePercentages(from, to, _dexPair);
         }
 
-        emit Transfer(from, to, amount);
+        if (isFromFixed == true && isToFixed == true) {
+            _transferBetweenFixed(from, to, amount, fees, needToCheckFromBalance);
+        } else if (isFromFixed == true && isToFixed == false) {
+            _transferFromFixedToNotFixed(from, to, amount, fees, needToCheckFromBalance);
+        } else if (isFromFixed == false && isToFixed == true) {
+            _trasnferFromNotFixedToFixed(from, to, amount, fees, needToCheckFromBalance);
+        } else if (isFromFixed == false && isToFixed == false) {
+            _transferFromNotFixedToNotFixed(from, to, amount, fees, needToCheckFromBalance);
+        }
     }
 
-    function _checkBuyRestrictionsOnStart(address from) private view {
+    function _transferBetweenFixed(
+        address from,
+        address to,
+        uint256 amount,
+        uint256[3] memory fees,
+        bool needToCheckFromBalance
+    ) private {
+        uint256 fixedBalanceFrom = _fixedBalances[from];
+        require(fixedBalanceFrom >= amount, "Exilon: Amount exceeds balance");
+        unchecked {
+            _fixedBalances[from] = (fixedBalanceFrom - amount);
+        }
+
+        fees = _getFeeAmounts(fees, amount, fixedBalanceFrom, needToCheckFromBalance);
+
+        if (fees[0] > 0) {
+            // Fee to lp pair
+            uint256 _feeAmountInTokens = feeAmountInTokens;
+            _feeAmountInTokens += fees[0];
+
+            _checkFee(_feeAmountInTokens);
+        }
+        if (fees[1] > 0) {
+            // Fee to burn
+            _fixedBalances[address(0xdead)] += fees[1];
+        }
+        if (fees[2] > 0) {
+            // Fee to distribute between users
+            _notFixedExternalTotalSupply += fees[2];
+        }
+
+        uint256 transferAmount = amount - fees[0] - fees[1] - fees[2];
+        _fixedBalances[to] += transferAmount;
+
+        emit Transfer(from, to, transferAmount);
+    }
+
+    function _transferFromFixedToNotFixed(
+        address from,
+        address to,
+        uint256 amount,
+        uint256[3] memory fees,
+        bool needToCheckFromBalance
+    ) private {
+        uint256 fixedBalanceFrom = _fixedBalances[from];
+        require(fixedBalanceFrom >= amount, "Exilon: Amount exceeds balance");
+        unchecked {
+            _fixedBalances[from] = (fixedBalanceFrom - amount);
+        }
+
+        fees = _getFeeAmounts(fees, amount, fixedBalanceFrom, needToCheckFromBalance);
+        if (fees[0] > 0) {
+            // Fee to lp pair
+            uint256 _feeAmountInTokens = feeAmountInTokens;
+            _feeAmountInTokens += fees[0];
+
+            _checkFee(_feeAmountInTokens);
+        }
+        if (fees[1] > 0) {
+            // Fee to burn
+            _fixedBalances[address(0xdead)] += fees[1];
+        }
+
+        uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
+        uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
+
+        uint256 transferAmount = amount - fees[0] - fees[1] - fees[2];
+        uint256 notFixedAmount = (transferAmount * notFixedInternalTotalSupply) /
+            notFixedExternalTotalSupply;
+        _notFixedBalances[to] += notFixedAmount;
+
+        notFixedExternalTotalSupply += transferAmount + fees[2];
+        _notFixedExternalTotalSupply = notFixedExternalTotalSupply;
+
+        notFixedInternalTotalSupply += notFixedAmount;
+        _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
+
+        emit Transfer(from, to, transferAmount);
+    }
+
+    function _trasnferFromNotFixedToFixed(
+        address from,
+        address to,
+        uint256 amount,
+        uint256[3] memory fees,
+        bool needToCheckFromBalance
+    ) private {
+        uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
+        uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
+
+        uint256 notFixedAmount = (amount * notFixedInternalTotalSupply) /
+            notFixedExternalTotalSupply;
+
+        uint256 notFixedBalanceFrom = _notFixedBalances[from];
+        require(notFixedBalanceFrom >= notFixedAmount, "Exilon: Amount exceeds balance");
+        unchecked {
+            _notFixedBalances[from] = (notFixedBalanceFrom - notFixedAmount);
+        }
+
+        fees = _getFeeAmounts(
+            fees,
+            amount,
+            (notFixedBalanceFrom * notFixedExternalTotalSupply) / notFixedInternalTotalSupply,
+            needToCheckFromBalance
+        );
+        if (fees[0] > 0) {
+            // Fee to lp pair
+            uint256 _feeAmountInTokens = feeAmountInTokens;
+            _feeAmountInTokens += fees[0];
+
+            _checkFee(_feeAmountInTokens);
+        }
+        if (fees[1] > 0) {
+            // Fee to burn
+            _fixedBalances[address(0xdead)] += fees[1];
+        }
+
+        uint256 transferAmount = amount - fees[0] - fees[1] - fees[2];
+        _fixedBalances[to] += transferAmount;
+
+        notFixedExternalTotalSupply -= amount;
+        notFixedExternalTotalSupply += fees[2];
+        _notFixedExternalTotalSupply = notFixedExternalTotalSupply;
+
+        notFixedInternalTotalSupply -= notFixedAmount;
+        _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
+
+        emit Transfer(from, to, transferAmount);
+    }
+
+    function _transferFromNotFixedToNotFixed(
+        address from,
+        address to,
+        uint256 amount,
+        uint256[3] memory fees,
+        bool needToCheckFromBalance
+    ) private {
+        uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
+        uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
+
+        uint256 notFixedAmount = (amount * notFixedInternalTotalSupply) /
+            notFixedExternalTotalSupply;
+
+        uint256 notFixedBalanceFrom = _notFixedBalances[from];
+        require(notFixedBalanceFrom >= notFixedAmount, "Exilon: Amount exceeds balance");
+        unchecked {
+            _notFixedBalances[from] = (notFixedBalanceFrom - notFixedAmount);
+        }
+
+        fees = _getFeeAmounts(fees, notFixedAmount, notFixedBalanceFrom, needToCheckFromBalance);
+        uint256 fixedLpAmount = (fees[0] * notFixedExternalTotalSupply) /
+            notFixedInternalTotalSupply;
+        uint256 fixedBurnAmount = (fees[1] * notFixedExternalTotalSupply) /
+            notFixedInternalTotalSupply;
+
+        uint256 notFixedTransferAmount = notFixedAmount - fees[0] - fees[1] - fees[2];
+        uint256 fixedTrasnferAmount = (notFixedTransferAmount * notFixedExternalTotalSupply) /
+            notFixedInternalTotalSupply;
+        _notFixedBalances[to] += notFixedTransferAmount;
+
+        if (fixedLpAmount > 0) {
+            // Fee to lp pair
+            uint256 _feeAmountInTokens = feeAmountInTokens;
+            _feeAmountInTokens += fixedLpAmount;
+            _checkFee(_feeAmountInTokens);
+        }
+        if (fixedBurnAmount > 0) {
+            // Fee to burn
+            _fixedBalances[address(0xdead)] += fixedBurnAmount;
+        }
+        notFixedExternalTotalSupply -= fixedLpAmount + fixedBurnAmount;
+        notFixedInternalTotalSupply -= fees[0] + fees[1] + fees[2];
+
+        _notFixedExternalTotalSupply = notFixedExternalTotalSupply;
+        _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
+
+        emit Transfer(from, to, fixedTrasnferAmount);
+    }
+
+    function _checkFee(uint256 feeAmount) private {
+        // TODO: implement logic
+        feeAmountInTokens = feeAmount;
+    }
+
+    function _checkBuyRestrictionsOnStart(
+        address from,
+        address _dexPair,
+        address weth
+    ) private view {
         // only on buy tokens
-        address _dexPair = dexPair;
         if (from != _dexPair) {
             return;
         }
@@ -405,31 +586,34 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         // [540; 600) - 1 BNB
 
         if (blocknumber < 60) {
-            _checkBuyAmountCeil(_dexPair, 1 ether / 10);
+            _checkBuyAmountCeil(_dexPair, 1 ether / 10, weth);
         } else if (blocknumber < 120) {
-            _checkBuyAmountCeil(_dexPair, 2 ether / 10);
+            _checkBuyAmountCeil(_dexPair, 2 ether / 10, weth);
         } else if (blocknumber < 180) {
-            _checkBuyAmountCeil(_dexPair, 3 ether / 10);
+            _checkBuyAmountCeil(_dexPair, 3 ether / 10, weth);
         } else if (blocknumber < 240) {
-            _checkBuyAmountCeil(_dexPair, 4 ether / 10);
+            _checkBuyAmountCeil(_dexPair, 4 ether / 10, weth);
         } else if (blocknumber < 300) {
-            _checkBuyAmountCeil(_dexPair, 5 ether / 10);
+            _checkBuyAmountCeil(_dexPair, 5 ether / 10, weth);
         } else if (blocknumber < 360) {
-            _checkBuyAmountCeil(_dexPair, 6 ether / 10);
+            _checkBuyAmountCeil(_dexPair, 6 ether / 10, weth);
         } else if (blocknumber < 420) {
-            _checkBuyAmountCeil(_dexPair, 7 ether / 10);
+            _checkBuyAmountCeil(_dexPair, 7 ether / 10, weth);
         } else if (blocknumber < 480) {
-            _checkBuyAmountCeil(_dexPair, 8 ether / 10);
+            _checkBuyAmountCeil(_dexPair, 8 ether / 10, weth);
         } else if (blocknumber < 540) {
-            _checkBuyAmountCeil(_dexPair, 9 ether / 10);
+            _checkBuyAmountCeil(_dexPair, 9 ether / 10, weth);
         } else if (blocknumber < 600) {
-            _checkBuyAmountCeil(_dexPair, 1 ether);
+            _checkBuyAmountCeil(_dexPair, 1 ether, weth);
         }
     }
 
-    function _checkBuyAmountCeil(address _dexPair, uint256 amount) private view {
+    function _checkBuyAmountCeil(
+        address _dexPair,
+        uint256 amount,
+        address weth
+    ) private view {
         address token = address(this);
-        address weth = _weth;
 
         uint256 reserveWeth;
         (uint256 reserve0, uint256 reserve1, ) = IPancakePair(_dexPair).getReserves();
@@ -442,5 +626,94 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
         uint256 trueWethBalance = IERC20(weth).balanceOf(_dexPair);
         require(trueWethBalance - reserveWeth <= amount, "Exilon: To big buy amount");
+    }
+
+    function _getFeePercentages(
+        address from,
+        address to,
+        address _dexPair
+    ) private view returns (uint256[3] memory percentages, bool needToCheckFromBalance) {
+        // percentages[0] - LP percentages
+        // percentages[1] - burn percentages
+        // percentages[2] - distribution percentages
+
+        // if needToCheckFromBalance == true
+        // then calculation of fee is carried over
+        // because of the gas optimisation (checking of balances is further in code)
+
+        if (to == _dexPair) {
+            // if selling
+            if (_excludedFromPayingFees.contains(from)) {
+                return ([uint256(0), 0, 0], false);
+            }
+            if (_noRestrictionsOnSell.contains(from)) {
+                return ([uint256(8), 1, 1], false);
+            }
+
+            // [0, 200) - 25%
+            // [200, 350) - 24%
+            // [350, 450) - 23%
+            // [450, 550) - 22%
+            // [550, 650) - 21%
+            // [650, 750) - 20%
+            // [750, 850) - 19%
+            // [850, 950) - 18%
+            // [950, 1050) - 17%
+            // [1050, 1150) - 16%
+            // [1150, 1250) - 15%
+            // [1250, 1350) - 14%
+            // [1350, 1450) - 13%
+            // [1450, 1550) - 12%
+            // [1550, 1650) - 11%
+            // [1650, +inf) - 10% + checking of balance (if selling >=50% of balance)
+
+            uint256 blocknumber = block.number - _startBlock;
+            if (blocknumber < 1650) {
+                if (blocknumber < 200) {
+                    return ([uint256(23), 1, 1], false);
+                } else if (blocknumber < 350) {
+                    return ([uint256(22), 1, 1], false);
+                } else {
+                    return ([23 - ((blocknumber - 350) / 100), 1, 1], false);
+                }
+            } else {
+                return ([uint256(0), 0, 0], true);
+            }
+        } else if (from == _dexPair) {
+            // if buying
+            if (_excludedFromPayingFees.contains(to)) {
+                // if buying account is excluded from paying fees
+                return ([uint256(0), 0, 0], false);
+            }
+        } else {
+            // if transfer
+            if (_excludedFromPayingFees.contains(from)) {
+                return ([uint256(0), 0, 0], false);
+            }
+        }
+        return ([uint256(8), 1, 1], false);
+    }
+
+    function _getFeeAmounts(
+        uint256[3] memory percentages,
+        uint256 amount,
+        uint256 balance,
+        bool needToCheckFromBalance
+    ) private pure returns (uint256[3] memory amounts) {
+        if (needToCheckFromBalance) {
+            if (amount < balance / 2) {
+                amounts[0] = (amount * 8) / 100;
+                amounts[1] = amount / 100;
+                amounts[2] = amounts[1];
+            } else {
+                amounts[0] = (amount * 13) / 100;
+                amounts[1] = amount / 100;
+                amounts[2] = amounts[1];
+            }
+        } else {
+            amounts[0] = (amount * percentages[0]) / 100;
+            amounts[1] = (amount * percentages[1]) / 100;
+            amounts[2] = (amount * percentages[2]) / 100;
+        }
     }
 }
