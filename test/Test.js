@@ -211,6 +211,10 @@ describe('Exilon test', () => {
 
     it("Test transfers between not fixed addresses without fees", async () => {
         await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
 
         await ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin });
         await ExilonInst.excludeFromPayingFees(distributionAddress2, { from: exilonAdmin });
@@ -236,79 +240,84 @@ describe('Exilon test', () => {
 
     it("Test transfers between fixed addresses without fees", async () => {
         await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
 
-        // make them fixed
-        await makeFixedAddress(distributionAddress1);
-        await makeFixedAddress(distributionAddress2);
-
-        await ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin });
-        await ExilonInst.excludeFromPayingFees(distributionAddress2, { from: exilonAdmin });
+        await ExilonInst.excludeFromPayingFees(distributionAddress5, { from: exilonAdmin });
+        await ExilonInst.excludeFromPayingFees(distributionAddress6, { from: exilonAdmin });
 
         // test transfer function
 
         // test trasnfer of full balance
         await checkTransfer(
-            distributionAddress1,
-            distributionAddress2,
-            await ExilonInst.balanceOf(distributionAddress1),
+            distributionAddress5,
+            distributionAddress6,
+            await ExilonInst.balanceOf(distributionAddress5),
             [ZERO, ZERO, ZERO]
         );
 
         // test transfer part of balance
         await checkTransfer(
-            distributionAddress2,
-            distributionAddress1,
-            (await ExilonInst.balanceOf(distributionAddress1)).div(THREE),
+            distributionAddress6,
+            distributionAddress5,
+            (await ExilonInst.balanceOf(distributionAddress6)).div(THREE),
             [ZERO, ZERO, ZERO]
         );
     })
 
     it("Test transfers between not fixed and fixed addresses without fees", async () => {
         await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
 
-        // make distributionAddress1 address fixed
-        await makeFixedAddress(distributionAddress1);
-
+        await ExilonInst.excludeFromPayingFees(distributionAddress5, { from: exilonAdmin });
         await ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin });
-        await ExilonInst.excludeFromPayingFees(distributionAddress2, { from: exilonAdmin });
 
         // test transfer function
 
         // test trasnfer of full balance from fixed to not fixed
         await checkTransfer(
+            distributionAddress5,
             distributionAddress1,
-            distributionAddress2,
-            await ExilonInst.balanceOf(distributionAddress1),
+            await ExilonInst.balanceOf(distributionAddress5),
             [ZERO, ZERO, ZERO]
         );
 
         // test trasnfer of full balance from not fixed to fixed
         await checkTransfer(
-            distributionAddress2,
             distributionAddress1,
-            await ExilonInst.balanceOf(distributionAddress2),
+            distributionAddress5,
+            await ExilonInst.balanceOf(distributionAddress1),
             [ZERO, ZERO, ZERO]
         );
 
         // test transfer less than half balance from fixed to not fixed
         await checkTransfer(
+            distributionAddress5,
             distributionAddress1,
-            distributionAddress2,
-            (await ExilonInst.balanceOf(distributionAddress1)).div(THREE),
+            (await ExilonInst.balanceOf(distributionAddress5)).div(THREE),
             [ZERO, ZERO, ZERO]
         );
 
         // test transfer of half balance from not fixed to fixed
         await checkTransfer(
-            distributionAddress2,
             distributionAddress1,
-            (await ExilonInst.balanceOf(distributionAddress2)).div(THREE),
+            distributionAddress5,
+            (await ExilonInst.balanceOf(distributionAddress1)).div(THREE),
             [ZERO, ZERO, ZERO]
         );
     })
 
     it("Test transfers between not fixed addresses with fees", async () => {
         await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
 
         // test transfer function
 
@@ -331,73 +340,78 @@ describe('Exilon test', () => {
 
     it("Test transfers between fixed addresses with fees", async () => {
         await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-
-        // make them fixed
-        await makeFixedAddress(distributionAddress1);
-        await makeFixedAddress(distributionAddress2);
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
 
         // test transfer function
 
         // test trasnfer of full balance
         await checkTransfer(
-            distributionAddress1,
-            distributionAddress2,
-            await ExilonInst.balanceOf(distributionAddress1),
+            distributionAddress5,
+            distributionAddress6,
+            await ExilonInst.balanceOf(distributionAddress5),
             [EIGHT, ONE, ONE]
         );
 
         // test transfer part of balance
         await checkTransfer(
-            distributionAddress2,
-            distributionAddress1,
-            (await ExilonInst.balanceOf(distributionAddress1)).div(THREE),
+            distributionAddress5,
+            distributionAddress6,
+            (await ExilonInst.balanceOf(distributionAddress5)).div(THREE),
             [EIGHT, ONE, ONE]
         );
     })
 
     it("Test transfers between not fixed and fixed addresses with fees", async () => {
         await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-
-        // make distributionAddress1 address fixed
-        await makeFixedAddress(distributionAddress1);
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
 
         // test transfer function
 
         // test trasnfer of full balance from fixed to not fixed
         await checkTransfer(
+            distributionAddress5,
             distributionAddress1,
-            distributionAddress2,
-            await ExilonInst.balanceOf(distributionAddress1),
+            await ExilonInst.balanceOf(distributionAddress5),
             [EIGHT, ONE, ONE]
         );
 
         // test trasnfer of full balance from not fixed to fixed
         await checkTransfer(
-            distributionAddress2,
             distributionAddress1,
-            await ExilonInst.balanceOf(distributionAddress2),
+            distributionAddress5,
+            await ExilonInst.balanceOf(distributionAddress1),
             [EIGHT, ONE, ONE]
         );
 
         // test transfer less than half balance from fixed to not fixed
         await checkTransfer(
+            distributionAddress5,
             distributionAddress1,
-            distributionAddress2,
-            (await ExilonInst.balanceOf(distributionAddress1)).div(THREE),
+            (await ExilonInst.balanceOf(distributionAddress5)).div(THREE),
             [EIGHT, ONE, ONE]
         );
 
         // test transfer of half balance from not fixed to fixed
         await checkTransfer(
-            distributionAddress2,
             distributionAddress1,
-            (await ExilonInst.balanceOf(distributionAddress2)).div(THREE),
+            distributionAddress5,
+            (await ExilonInst.balanceOf(distributionAddress1)).div(THREE),
             [EIGHT, ONE, ONE]
         );
     })
 
     it("Test exludeFromFeesDistribution and includeToFeesDistribution", async () => {
         await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
 
 
         await expectRevert(
