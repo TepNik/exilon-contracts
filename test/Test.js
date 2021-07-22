@@ -14,7 +14,7 @@ require('dotenv').config();
 const {
 } = process.env;
 
-let testsWithOutput = true;
+let testsWithOutput = false;
 
 const MINUS_ONE = new BN(-1);
 const ZERO = new BN(0);
@@ -62,7 +62,7 @@ let ExilonDexPairInst;
 let fixedAddresses = [];
 let notFixedAddresses = [];
 
-describe('Exilon test', () => {
+describe('Exilon contract tests', () => {
     const [
         feeToSetter,
         exilonAdmin,
@@ -145,7 +145,25 @@ describe('Exilon test', () => {
         expect(await ExilonInst.balanceOf(distributionAddress8)).to.be.bignumber.equals(amountToDistribution.div(EIGHT));
     })
 
-    it("Add first liqiudity", async () => {
+    it("addLiquidity()", async () => {
+        await expectRevert(
+            ExilonInst.transfer(distributionAddress2, ZERO, { from: distributionAddress1 }),
+            "Exilon: Liquidity not added"
+        );
+        await expectRevert(
+            ExilonInst.transferFrom(distributionAddress2, distributionAddress1, ZERO, { from: distributionAddress1 }),
+            "Exilon: Liquidity not added"
+        );
+
+        await expectRevert(
+            ExilonInst.excludeFromFeesDistribution(distributionAddress1, { from: exilonAdmin }),
+            "Exilon: Liquidity not added"
+        );
+        await expectRevert(
+            ExilonInst.includeToFeesDistribution(distributionAddress1, { from: exilonAdmin }),
+            "Exilon: Liquidity not added"
+        );
+
         await expectRevert(
             ExilonInst.addLiquidity({ from: distributionAddress1 }),
             "Exilon: Sender is not admin"
@@ -164,448 +182,481 @@ describe('Exilon test', () => {
         expect(await ExilonDexPairInst.balanceOf(exilonAdmin)).to.be.bignumber.equals(lpTotalSupply.sub(minimumLiqiudity));
     })
 
-    it("Test addLiquidity restrictions", async () => {
-        await expectRevert(
-            ExilonInst.transfer(distributionAddress2, ZERO, { from: distributionAddress1 }),
-            "Exilon: Liquidity not added"
-        );
-        await expectRevert(
-            ExilonInst.transferFrom(distributionAddress2, distributionAddress1, ZERO, { from: distributionAddress1 }),
-            "Exilon: Liquidity not added"
-        );
+    describe("transfer()", () => {
+        it("transferFrom()", async () => {
+            await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
 
-        await expectRevert(
-            ExilonInst.excludeFromFeesDistribution(distributionAddress1, { from: exilonAdmin }),
-            "Exilon: Liquidity not added"
-        );
-        await expectRevert(
-            ExilonInst.includeToFeesDistribution(distributionAddress1, { from: exilonAdmin }),
-            "Exilon: Liquidity not added"
-        );
-    })
+            let balance = await ExilonInst.balanceOf(distributionAddress1);
 
-    it("Test transferFrom function", async () => {
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-
-        let balance = await ExilonInst.balanceOf(distributionAddress1);
-
-        await expectRevert(
-            ExilonInst.transferFrom(distributionAddress1, distributionAddress2, balance, { from: distributionAddress2 }),
-            "Exilon: Amount exceeds allowance"
-        );
-        await ExilonInst.approve(distributionAddress2, balance.sub(ONE), { from: distributionAddress1 });
-        await expectRevert(
-            ExilonInst.transferFrom(distributionAddress1, distributionAddress2, balance, { from: distributionAddress2 }),
-            "Exilon: Amount exceeds allowance"
-        );
-        await ExilonInst.approve(distributionAddress2, balance, { from: distributionAddress1 });
-        await ExilonInst.transferFrom(distributionAddress1, distributionAddress2, balance, { from: distributionAddress2 });
-    })
-
-    it("Test transfers between not fixed addresses without fees", async () => {
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-        await makeFixedAddress(distributionAddress5);
-        await makeFixedAddress(distributionAddress6);
-        await makeFixedAddress(distributionAddress7);
-        await makeFixedAddress(distributionAddress8);
-
-        await ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin });
-        await ExilonInst.excludeFromPayingFees(distributionAddress2, { from: exilonAdmin });
-
-        // test transfer function
-
-        // test trasnfer of full balance
-        await checkTransfer(
-            distributionAddress1,
-            distributionAddress2,
-            await ExilonInst.balanceOf(distributionAddress1),
-            [ZERO, ZERO, ZERO]
-        );
-
-        // test trasnfer of part balance
-        await checkTransfer(
-            distributionAddress2,
-            distributionAddress1,
-            (await ExilonInst.balanceOf(distributionAddress2)).div(THREE),
-            [ZERO, ZERO, ZERO]
-        );
-    })
-
-    it("Test transfers between fixed addresses without fees", async () => {
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-        await makeFixedAddress(distributionAddress5);
-        await makeFixedAddress(distributionAddress6);
-        await makeFixedAddress(distributionAddress7);
-        await makeFixedAddress(distributionAddress8);
-
-        await ExilonInst.excludeFromPayingFees(distributionAddress5, { from: exilonAdmin });
-        await ExilonInst.excludeFromPayingFees(distributionAddress6, { from: exilonAdmin });
-
-        // test transfer function
-
-        // test trasnfer of full balance
-        await checkTransfer(
-            distributionAddress5,
-            distributionAddress6,
-            await ExilonInst.balanceOf(distributionAddress5),
-            [ZERO, ZERO, ZERO]
-        );
-
-        // test transfer part of balance
-        await checkTransfer(
-            distributionAddress6,
-            distributionAddress5,
-            (await ExilonInst.balanceOf(distributionAddress6)).div(THREE),
-            [ZERO, ZERO, ZERO]
-        );
-    })
-
-    it("Test transfers between not fixed and fixed addresses without fees", async () => {
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-        await makeFixedAddress(distributionAddress5);
-        await makeFixedAddress(distributionAddress6);
-        await makeFixedAddress(distributionAddress7);
-        await makeFixedAddress(distributionAddress8);
-
-        await ExilonInst.excludeFromPayingFees(distributionAddress5, { from: exilonAdmin });
-        await ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin });
-
-        // test transfer function
-
-        // test trasnfer of full balance from fixed to not fixed
-        await checkTransfer(
-            distributionAddress5,
-            distributionAddress1,
-            await ExilonInst.balanceOf(distributionAddress5),
-            [ZERO, ZERO, ZERO]
-        );
-
-        // test trasnfer of full balance from not fixed to fixed
-        await checkTransfer(
-            distributionAddress1,
-            distributionAddress5,
-            await ExilonInst.balanceOf(distributionAddress1),
-            [ZERO, ZERO, ZERO]
-        );
-
-        // test transfer less than half balance from fixed to not fixed
-        await checkTransfer(
-            distributionAddress5,
-            distributionAddress1,
-            (await ExilonInst.balanceOf(distributionAddress5)).div(THREE),
-            [ZERO, ZERO, ZERO]
-        );
-
-        // test transfer of half balance from not fixed to fixed
-        await checkTransfer(
-            distributionAddress1,
-            distributionAddress5,
-            (await ExilonInst.balanceOf(distributionAddress1)).div(THREE),
-            [ZERO, ZERO, ZERO]
-        );
-    })
-
-    it("Test transfers between not fixed addresses with fees", async () => {
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-        await makeFixedAddress(distributionAddress5);
-        await makeFixedAddress(distributionAddress6);
-        await makeFixedAddress(distributionAddress7);
-        await makeFixedAddress(distributionAddress8);
-
-        // test transfer function
-
-        // test trasnfer of full balance
-        await checkTransfer(
-            distributionAddress1,
-            distributionAddress2,
-            await ExilonInst.balanceOf(distributionAddress1),
-            [EIGHT, ONE, ONE]
-        );
-
-        // test trasnfer of part balance
-        await checkTransfer(
-            distributionAddress2,
-            distributionAddress1,
-            (await ExilonInst.balanceOf(distributionAddress2)).div(THREE),
-            [EIGHT, ONE, ONE]
-        );
-    })
-
-    it("Test transfers between fixed addresses with fees", async () => {
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-        await makeFixedAddress(distributionAddress5);
-        await makeFixedAddress(distributionAddress6);
-        await makeFixedAddress(distributionAddress7);
-        await makeFixedAddress(distributionAddress8);
-
-        // test transfer function
-
-        // test trasnfer of full balance
-        await checkTransfer(
-            distributionAddress5,
-            distributionAddress6,
-            await ExilonInst.balanceOf(distributionAddress5),
-            [EIGHT, ONE, ONE]
-        );
-
-        // test transfer part of balance
-        await checkTransfer(
-            distributionAddress5,
-            distributionAddress6,
-            (await ExilonInst.balanceOf(distributionAddress5)).div(THREE),
-            [EIGHT, ONE, ONE]
-        );
-    })
-
-    it("Test transfers between not fixed and fixed addresses with fees", async () => {
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-        await makeFixedAddress(distributionAddress5);
-        await makeFixedAddress(distributionAddress6);
-        await makeFixedAddress(distributionAddress7);
-        await makeFixedAddress(distributionAddress8);
-
-        // test transfer function
-
-        // test trasnfer of full balance from fixed to not fixed
-        await checkTransfer(
-            distributionAddress5,
-            distributionAddress1,
-            await ExilonInst.balanceOf(distributionAddress5),
-            [EIGHT, ONE, ONE]
-        );
-
-        // test trasnfer of full balance from not fixed to fixed
-        await checkTransfer(
-            distributionAddress1,
-            distributionAddress5,
-            await ExilonInst.balanceOf(distributionAddress1),
-            [EIGHT, ONE, ONE]
-        );
-
-        // test transfer less than half balance from fixed to not fixed
-        await checkTransfer(
-            distributionAddress5,
-            distributionAddress1,
-            (await ExilonInst.balanceOf(distributionAddress5)).div(THREE),
-            [EIGHT, ONE, ONE]
-        );
-
-        // test transfer of half balance from not fixed to fixed
-        await checkTransfer(
-            distributionAddress1,
-            distributionAddress5,
-            (await ExilonInst.balanceOf(distributionAddress1)).div(THREE),
-            [EIGHT, ONE, ONE]
-        );
-    })
-
-    it("Test buy and sell without fees and notFixed account", async () => {
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN).mul(TEN) });
-        await makeFixedAddress(distributionAddress5);
-        await makeFixedAddress(distributionAddress6);
-        await makeFixedAddress(distributionAddress7);
-        await makeFixedAddress(distributionAddress8);
-
-        await ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin });
-
-        await checkBuy(
-            distributionAddress1,
-            ONE_ETH.div(TEN),
-            [ZERO, ZERO, ZERO]
-        );
-
-        await checkSell(
-            distributionAddress1,
-            await ExilonInst.balanceOf(distributionAddress1),
-            [ZERO, ZERO, ZERO]
-        );
-    })
-
-    it("Test buy and sell without fees and fixed account", async () => {
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN).mul(TEN) });
-        await makeFixedAddress(distributionAddress5);
-        await makeFixedAddress(distributionAddress6);
-        await makeFixedAddress(distributionAddress7);
-        await makeFixedAddress(distributionAddress8);
-
-        await ExilonInst.excludeFromPayingFees(distributionAddress5, { from: exilonAdmin });
-
-        await checkBuy(
-            distributionAddress5,
-            ONE_ETH.div(TEN),
-            [ZERO, ZERO, ZERO]
-        );
-
-        await checkSell(
-            distributionAddress5,
-            await ExilonInst.balanceOf(distributionAddress5),
-            [ZERO, ZERO, ZERO]
-        );
-    })
-
-    it("Test buy and sell with fees and notFixed account", async () => {
-        let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-        let blocknumber = new BN(tx.receipt.blockNumber);
-        await makeFixedAddress(distributionAddress5);
-        await makeFixedAddress(distributionAddress6);
-        await makeFixedAddress(distributionAddress7);
-        await makeFixedAddress(distributionAddress8);
-
-        await checkBuy(
-            distributionAddress1,
-            ONE_ETH.div(TEN),
-            [EIGHT, ONE, ONE]
-        );
-
-        await checkSell(
-            distributionAddress1,
-            (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
-            [new BN("23"), ONE, ONE]
-        );
-        await time.advanceBlockTo(blocknumber.add(new BN("200")));
-        await checkSell(
-            distributionAddress1,
-            (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
-            [new BN("22"), ONE, ONE]
-        );
-        await time.advanceBlockTo(blocknumber.add(new BN("350")));
-
-        let startBlock = blocknumber.add(new BN("350"));
-        let step = new BN("100");
-        for (let i = 0; i < 13; ++i) {
-            let index = new BN(i);
-            await checkSell(
-                distributionAddress1,
-                (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
-                [(new BN("21")).sub(index), ONE, ONE]
+            await expectRevert(
+                ExilonInst.transferFrom(distributionAddress1, distributionAddress2, balance, { from: distributionAddress2 }),
+                "Exilon: Amount exceeds allowance"
             );
-
-            let newBlocknumber = startBlock.add(step.mul(index.add(ONE)));
-            await time.advanceBlockTo(newBlocknumber);
-        }
-
-        await checkSell(
-            distributionAddress1,
-            (await ExilonInst.balanceOf(distributionAddress1)).div(TWO).sub(ONE),
-            [EIGHT, ONE, ONE]
-        );
-        await checkSell(
-            distributionAddress1,
-            (await ExilonInst.balanceOf(distributionAddress1)).div(TWO),
-            [new BN("13"), ONE, ONE]
-        );
-    })
-
-    it("Test buy and sell with fees and fixed account", async () => {
-        let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-        let blocknumber = new BN(tx.receipt.blockNumber);
-        await makeFixedAddress(distributionAddress5);
-        await makeFixedAddress(distributionAddress6);
-        await makeFixedAddress(distributionAddress7);
-        await makeFixedAddress(distributionAddress8);
-
-        await checkBuy(
-            distributionAddress5,
-            ONE_ETH.div(TEN),
-            [EIGHT, ONE, ONE]
-        );
-
-        await checkSell(
-            distributionAddress5,
-            (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
-            [new BN("23"), ONE, ONE]
-        );
-        await time.advanceBlockTo(blocknumber.add(new BN("200")));
-        await checkSell(
-            distributionAddress5,
-            (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
-            [new BN("22"), ONE, ONE]
-        );
-        await time.advanceBlockTo(blocknumber.add(new BN("350")));
-
-        let startBlock = blocknumber.add(new BN("350"));
-        let step = new BN("100");
-        for (let i = 0; i < 13; ++i) {
-            let index = new BN(i);
-            await checkSell(
-                distributionAddress5,
-                (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
-                [(new BN("21")).sub(index), ONE, ONE]
+            await ExilonInst.approve(distributionAddress2, balance.sub(ONE), { from: distributionAddress1 });
+            await expectRevert(
+                ExilonInst.transferFrom(distributionAddress1, distributionAddress2, balance, { from: distributionAddress2 }),
+                "Exilon: Amount exceeds allowance"
             );
+            await ExilonInst.approve(distributionAddress2, balance, { from: distributionAddress1 });
+            await ExilonInst.transferFrom(distributionAddress1, distributionAddress2, balance, { from: distributionAddress2 });
+        })
 
-            let newBlocknumber = startBlock.add(step.mul(index.add(ONE)));
-            await time.advanceBlockTo(newBlocknumber);
-        }
+        describe("No fees", () => {
+            it("Between not fixed addresses", async () => {
+                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
 
-        await checkSell(
-            distributionAddress5,
-            (await ExilonInst.balanceOf(distributionAddress5)).div(TWO).sub(ONE),
-            [EIGHT, ONE, ONE]
-        );
-        await checkSell(
-            distributionAddress5,
-            (await ExilonInst.balanceOf(distributionAddress5)).div(TWO),
-            [new BN("13"), ONE, ONE]
-        );
+                await ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin });
+                await ExilonInst.excludeFromPayingFees(distributionAddress2, { from: exilonAdmin });
+
+                // test transfer function
+
+                // test trasnfer of full balance
+                await checkTransfer(
+                    distributionAddress1,
+                    distributionAddress2,
+                    await ExilonInst.balanceOf(distributionAddress1),
+                    [ZERO, ZERO, ZERO]
+                );
+
+                // test trasnfer of part balance
+                await checkTransfer(
+                    distributionAddress2,
+                    distributionAddress1,
+                    (await ExilonInst.balanceOf(distributionAddress2)).div(THREE),
+                    [ZERO, ZERO, ZERO]
+                );
+            })
+
+            it("Between fixed addresses", async () => {
+                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                await ExilonInst.excludeFromPayingFees(distributionAddress5, { from: exilonAdmin });
+                await ExilonInst.excludeFromPayingFees(distributionAddress6, { from: exilonAdmin });
+
+                // test transfer function
+
+                // test trasnfer of full balance
+                await checkTransfer(
+                    distributionAddress5,
+                    distributionAddress6,
+                    await ExilonInst.balanceOf(distributionAddress5),
+                    [ZERO, ZERO, ZERO]
+                );
+
+                // test transfer part of balance
+                await checkTransfer(
+                    distributionAddress6,
+                    distributionAddress5,
+                    (await ExilonInst.balanceOf(distributionAddress6)).div(THREE),
+                    [ZERO, ZERO, ZERO]
+                );
+            })
+
+            it("Between not fixed and fixed addresses", async () => {
+                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                await ExilonInst.excludeFromPayingFees(distributionAddress5, { from: exilonAdmin });
+                await ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin });
+
+                // test transfer function
+
+                // test trasnfer of full balance from fixed to not fixed
+                await checkTransfer(
+                    distributionAddress5,
+                    distributionAddress1,
+                    await ExilonInst.balanceOf(distributionAddress5),
+                    [ZERO, ZERO, ZERO]
+                );
+
+                // test trasnfer of full balance from not fixed to fixed
+                await checkTransfer(
+                    distributionAddress1,
+                    distributionAddress5,
+                    await ExilonInst.balanceOf(distributionAddress1),
+                    [ZERO, ZERO, ZERO]
+                );
+
+                // test transfer less than half balance from fixed to not fixed
+                await checkTransfer(
+                    distributionAddress5,
+                    distributionAddress1,
+                    (await ExilonInst.balanceOf(distributionAddress5)).div(THREE),
+                    [ZERO, ZERO, ZERO]
+                );
+
+                // test transfer of half balance from not fixed to fixed
+                await checkTransfer(
+                    distributionAddress1,
+                    distributionAddress5,
+                    (await ExilonInst.balanceOf(distributionAddress1)).div(THREE),
+                    [ZERO, ZERO, ZERO]
+                );
+            })
+        })
+
+        describe("With fees", () => {
+            it("Between not fixed addresses", async () => {
+                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                // test transfer function
+
+                // test trasnfer of full balance
+                await checkTransfer(
+                    distributionAddress1,
+                    distributionAddress2,
+                    await ExilonInst.balanceOf(distributionAddress1),
+                    [EIGHT, ONE, ONE]
+                );
+
+                // test trasnfer of part balance
+                await checkTransfer(
+                    distributionAddress2,
+                    distributionAddress1,
+                    (await ExilonInst.balanceOf(distributionAddress2)).div(THREE),
+                    [EIGHT, ONE, ONE]
+                );
+            })
+
+            it("Between fixed addresses", async () => {
+                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                // test transfer function
+
+                // test trasnfer of full balance
+                await checkTransfer(
+                    distributionAddress5,
+                    distributionAddress6,
+                    await ExilonInst.balanceOf(distributionAddress5),
+                    [EIGHT, ONE, ONE]
+                );
+
+                // test transfer part of balance
+                await checkTransfer(
+                    distributionAddress5,
+                    distributionAddress6,
+                    (await ExilonInst.balanceOf(distributionAddress5)).div(THREE),
+                    [EIGHT, ONE, ONE]
+                );
+            })
+
+            it("Between not fixed and fixed addresses", async () => {
+                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                // test transfer function
+
+                // test trasnfer of full balance from fixed to not fixed
+                await checkTransfer(
+                    distributionAddress5,
+                    distributionAddress1,
+                    await ExilonInst.balanceOf(distributionAddress5),
+                    [EIGHT, ONE, ONE]
+                );
+
+                // test trasnfer of full balance from not fixed to fixed
+                await checkTransfer(
+                    distributionAddress1,
+                    distributionAddress5,
+                    await ExilonInst.balanceOf(distributionAddress1),
+                    [EIGHT, ONE, ONE]
+                );
+
+                // test transfer less than half balance from fixed to not fixed
+                await checkTransfer(
+                    distributionAddress5,
+                    distributionAddress1,
+                    (await ExilonInst.balanceOf(distributionAddress5)).div(THREE),
+                    [EIGHT, ONE, ONE]
+                );
+
+                // test transfer of half balance from not fixed to fixed
+                await checkTransfer(
+                    distributionAddress1,
+                    distributionAddress5,
+                    (await ExilonInst.balanceOf(distributionAddress1)).div(THREE),
+                    [EIGHT, ONE, ONE]
+                );
+            })
+        })
     })
 
-    it("Test buy and sell with no restrictions on sell and notFixed account", async () => {
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-        await makeFixedAddress(distributionAddress5);
-        await makeFixedAddress(distributionAddress6);
-        await makeFixedAddress(distributionAddress7);
-        await makeFixedAddress(distributionAddress8);
+    describe("Dex buy and sell", () => {
+        it("Check buy restrictions on start", async () => {
+            let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+            let blocknumber = new BN(tx.receipt.blockNumber);
+            let step = new BN("60");
+            for (let i = 0; i < 10; ++i) {
+                let index = new BN(i);
+                let newBlocknumber = blocknumber.add(step.mul(index));
+                await time.advanceBlockTo(newBlocknumber);
 
-        await ExilonInst.removeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin });
+                await expectRevert(
+                    PancakeRouterInst.swapExactETHForTokens(
+                        ZERO,
+                        [WETHInst.address, ExilonInst.address],
+                        exilonAdmin,
+                        DEADLINE,
+                        { value: ONE_ETH.div(TEN).mul(index.add(ONE)).add(ONE) }
+                    ),
+                    "Pancake: TRANSFER_FAILED"
+                );
+                await PancakeRouterInst.swapExactETHForTokens(
+                    ZERO,
+                    [WETHInst.address, ExilonInst.address],
+                    exilonAdmin,
+                    DEADLINE,
+                    { value: ONE_ETH.div(TEN).mul(index.add(ONE)) }
+                );
+            }
 
-        await checkBuy(
-            distributionAddress1,
-            ONE_ETH.div(TEN),
-            [EIGHT, ONE, ONE]
-        );
+            await time.advanceBlockTo(blocknumber.add(step.mul(new BN(11))));
 
-        await checkSell(
-            distributionAddress1,
-            (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
-            [EIGHT, ONE, ONE]
-        );
+            await PancakeRouterInst.swapExactETHForTokens(
+                ZERO,
+                [WETHInst.address, ExilonInst.address],
+                exilonAdmin,
+                DEADLINE,
+                { value: ONE_ETH.mul(TEN) }
+            );
+        })
 
-        await checkSell(
-            distributionAddress1,
-            await ExilonInst.balanceOf(distributionAddress1),
-            [EIGHT, ONE, ONE]
-        );
+        describe("Without fees", () => {
+            it("Not fixed account", async () => {
+                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN).mul(TEN) });
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                await ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin });
+
+                await checkBuy(
+                    distributionAddress1,
+                    ONE_ETH.div(TEN),
+                    [ZERO, ZERO, ZERO]
+                );
+
+                await checkSell(
+                    distributionAddress1,
+                    await ExilonInst.balanceOf(distributionAddress1),
+                    [ZERO, ZERO, ZERO]
+                );
+            })
+
+            it("Fixed account", async () => {
+                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN).mul(TEN) });
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                await ExilonInst.excludeFromPayingFees(distributionAddress5, { from: exilonAdmin });
+
+                await checkBuy(
+                    distributionAddress5,
+                    ONE_ETH.div(TEN),
+                    [ZERO, ZERO, ZERO]
+                );
+
+                await checkSell(
+                    distributionAddress5,
+                    await ExilonInst.balanceOf(distributionAddress5),
+                    [ZERO, ZERO, ZERO]
+                );
+            })
+        })
+
+        describe("With fees", () => {
+            it("Not fixed account", async () => {
+                let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+                let blocknumber = new BN(tx.receipt.blockNumber);
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                await checkBuy(
+                    distributionAddress1,
+                    ONE_ETH.div(TEN),
+                    [EIGHT, ONE, ONE]
+                );
+
+                await checkSell(
+                    distributionAddress1,
+                    (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
+                    [new BN("23"), ONE, ONE]
+                );
+                await time.advanceBlockTo(blocknumber.add(new BN("200")));
+                await checkSell(
+                    distributionAddress1,
+                    (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
+                    [new BN("22"), ONE, ONE]
+                );
+                await time.advanceBlockTo(blocknumber.add(new BN("350")));
+
+                let startBlock = blocknumber.add(new BN("350"));
+                let step = new BN("100");
+                for (let i = 0; i < 13; ++i) {
+                    let index = new BN(i);
+                    await checkSell(
+                        distributionAddress1,
+                        (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
+                        [(new BN("21")).sub(index), ONE, ONE]
+                    );
+
+                    let newBlocknumber = startBlock.add(step.mul(index.add(ONE)));
+                    await time.advanceBlockTo(newBlocknumber);
+                }
+
+                await checkSell(
+                    distributionAddress1,
+                    (await ExilonInst.balanceOf(distributionAddress1)).div(TWO).sub(ONE),
+                    [EIGHT, ONE, ONE]
+                );
+                await checkSell(
+                    distributionAddress1,
+                    (await ExilonInst.balanceOf(distributionAddress1)).div(TWO),
+                    [new BN("13"), ONE, ONE]
+                );
+            })
+
+            it("Fixed account", async () => {
+                let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+                let blocknumber = new BN(tx.receipt.blockNumber);
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                await checkBuy(
+                    distributionAddress5,
+                    ONE_ETH.div(TEN),
+                    [EIGHT, ONE, ONE]
+                );
+
+                await checkSell(
+                    distributionAddress5,
+                    (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
+                    [new BN("23"), ONE, ONE]
+                );
+                await time.advanceBlockTo(blocknumber.add(new BN("200")));
+                await checkSell(
+                    distributionAddress5,
+                    (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
+                    [new BN("22"), ONE, ONE]
+                );
+                await time.advanceBlockTo(blocknumber.add(new BN("350")));
+
+                let startBlock = blocknumber.add(new BN("350"));
+                let step = new BN("100");
+                for (let i = 0; i < 13; ++i) {
+                    let index = new BN(i);
+                    await checkSell(
+                        distributionAddress5,
+                        (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
+                        [(new BN("21")).sub(index), ONE, ONE]
+                    );
+
+                    let newBlocknumber = startBlock.add(step.mul(index.add(ONE)));
+                    await time.advanceBlockTo(newBlocknumber);
+                }
+
+                await checkSell(
+                    distributionAddress5,
+                    (await ExilonInst.balanceOf(distributionAddress5)).div(TWO).sub(ONE),
+                    [EIGHT, ONE, ONE]
+                );
+                await checkSell(
+                    distributionAddress5,
+                    (await ExilonInst.balanceOf(distributionAddress5)).div(TWO),
+                    [new BN("13"), ONE, ONE]
+                );
+            })
+        })
+
+        describe("No restrictions on sell accounts", () => {
+            it("Not fixed account", async () => {
+                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                await ExilonInst.removeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin });
+
+                await checkBuy(
+                    distributionAddress1,
+                    ONE_ETH.div(TEN),
+                    [EIGHT, ONE, ONE]
+                );
+
+                await checkSell(
+                    distributionAddress1,
+                    (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
+                    [EIGHT, ONE, ONE]
+                );
+
+                await checkSell(
+                    distributionAddress1,
+                    await ExilonInst.balanceOf(distributionAddress1),
+                    [EIGHT, ONE, ONE]
+                );
+            })
+
+            it("Fixed account", async () => {
+                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                await ExilonInst.removeRestrictionsOnSell(distributionAddress5, { from: exilonAdmin });
+
+                await checkBuy(
+                    distributionAddress5,
+                    ONE_ETH.div(TEN),
+                    [EIGHT, ONE, ONE]
+                );
+
+                await checkSell(
+                    distributionAddress5,
+                    (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
+                    [EIGHT, ONE, ONE]
+                );
+
+                await checkSell(
+                    distributionAddress5,
+                    await ExilonInst.balanceOf(distributionAddress5),
+                    [EIGHT, ONE, ONE]
+                );
+            })
+        })
     })
 
-    it("Test buy and sell with no restrictions on sell and fixed account", async () => {
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-        await makeFixedAddress(distributionAddress5);
-        await makeFixedAddress(distributionAddress6);
-        await makeFixedAddress(distributionAddress7);
-        await makeFixedAddress(distributionAddress8);
-
-        await ExilonInst.removeRestrictionsOnSell(distributionAddress5, { from: exilonAdmin });
-
-        await checkBuy(
-            distributionAddress5,
-            ONE_ETH.div(TEN),
-            [EIGHT, ONE, ONE]
-        );
-
-        await checkSell(
-            distributionAddress5,
-            (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
-            [EIGHT, ONE, ONE]
-        );
-
-        await checkSell(
-            distributionAddress5,
-            await ExilonInst.balanceOf(distributionAddress5),
-            [EIGHT, ONE, ONE]
-        );
-    })
-
-    it("Test exludeFromFeesDistribution and includeToFeesDistribution", async () => {
+    it("exludeFromFeesDistribution() and includeToFeesDistribution()", async () => {
         await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
         await makeFixedAddress(distributionAddress5);
         await makeFixedAddress(distributionAddress6);
@@ -645,53 +696,14 @@ describe('Exilon test', () => {
         expect(balanceAfter).to.be.bignumber.equals(balanceBefore);
     })
 
-    it("Check buy restrictions on start", async () => {
-        let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-        let blocknumber = new BN(tx.receipt.blockNumber);
-        let step = new BN("60");
-        for (let i = 0; i < 10; ++i) {
-            let index = new BN(i);
-            let newBlocknumber = blocknumber.add(step.mul(index));
-            await time.advanceBlockTo(newBlocknumber);
-
-            await expectRevert(
-                PancakeRouterInst.swapExactETHForTokens(
-                    ZERO,
-                    [WETHInst.address, ExilonInst.address],
-                    exilonAdmin,
-                    DEADLINE,
-                    { value: ONE_ETH.div(TEN).mul(index.add(ONE)).add(ONE) }
-                ),
-                "Pancake: TRANSFER_FAILED"
-            );
-            await PancakeRouterInst.swapExactETHForTokens(
-                ZERO,
-                [WETHInst.address, ExilonInst.address],
-                exilonAdmin,
-                DEADLINE,
-                { value: ONE_ETH.div(TEN).mul(index.add(ONE)) }
-            );
-        }
-
-        await time.advanceBlockTo(blocknumber.add(step.mul(new BN(11))));
-
-        await PancakeRouterInst.swapExactETHForTokens(
-            ZERO,
-            [WETHInst.address, ExilonInst.address],
-            exilonAdmin,
-            DEADLINE,
-            { value: ONE_ETH.mul(TEN) }
-        );
-    })
-
-    it("Test excludeFromPayingFees and includeToPayingFees", async () => {
+    it("excludeFromPayingFees() and includeToPayingFees()", async () => {
         await expectRevert(
-            ExilonInst.excludeFromPayingFees(distributionAddress2, { from: distributionAddress1}),
+            ExilonInst.excludeFromPayingFees(distributionAddress2, { from: distributionAddress1 }),
             "Exilon: Sender is not admin"
         );
 
         await expectRevert(
-            ExilonInst.includeToPayingFees(distributionAddress2, { from: exilonAdmin}),
+            ExilonInst.includeToPayingFees(distributionAddress2, { from: exilonAdmin }),
             "Exilon: Already included"
         );
 
@@ -699,9 +711,9 @@ describe('Exilon test', () => {
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress1)).to.be.false;
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress2)).to.be.false;
 
-        await ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin});
+        await ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin });
         await expectRevert(
-            ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin}),
+            ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin }),
             "Exilon: Already excluded"
         );
 
@@ -710,9 +722,9 @@ describe('Exilon test', () => {
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress1)).to.be.true;
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress2)).to.be.false;
 
-        await ExilonInst.includeToPayingFees(distributionAddress1, { from: exilonAdmin});
+        await ExilonInst.includeToPayingFees(distributionAddress1, { from: exilonAdmin });
         await expectRevert(
-            ExilonInst.includeToPayingFees(distributionAddress1, { from: exilonAdmin}),
+            ExilonInst.includeToPayingFees(distributionAddress1, { from: exilonAdmin }),
             "Exilon: Already included"
         );
 
@@ -721,14 +733,14 @@ describe('Exilon test', () => {
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress2)).to.be.false;
     })
 
-    it("Test removeRestrictionsOnSell and imposeRestrictionsOnSell", async () => {
+    it("removeRestrictionsOnSell() and imposeRestrictionsOnSell()", async () => {
         await expectRevert(
-            ExilonInst.removeRestrictionsOnSell(distributionAddress2, { from: distributionAddress1}),
+            ExilonInst.removeRestrictionsOnSell(distributionAddress2, { from: distributionAddress1 }),
             "Exilon: Sender is not admin"
         );
 
         await expectRevert(
-            ExilonInst.imposeRestrictionsOnSell(distributionAddress2, { from: exilonAdmin}),
+            ExilonInst.imposeRestrictionsOnSell(distributionAddress2, { from: exilonAdmin }),
             "Exilon: Already imposed"
         );
 
@@ -736,9 +748,9 @@ describe('Exilon test', () => {
         expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress1)).to.be.false;
         expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress2)).to.be.false;
 
-        await ExilonInst.removeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin});
+        await ExilonInst.removeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin });
         await expectRevert(
-            ExilonInst.removeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin}),
+            ExilonInst.removeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin }),
             "Exilon: Already removed"
         );
 
@@ -747,9 +759,9 @@ describe('Exilon test', () => {
         expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress1)).to.be.true;
         expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress2)).to.be.false;
 
-        await ExilonInst.imposeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin});
+        await ExilonInst.imposeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin });
         await expectRevert(
-            ExilonInst.imposeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin}),
+            ExilonInst.imposeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin }),
             "Exilon: Already imposed"
         );
 
