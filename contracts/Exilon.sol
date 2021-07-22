@@ -249,14 +249,24 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         }
     }
 
-    function excludeFromPayingFees(address user) external onlyWhenLiquidityAdded onlyAdmin {
+    function excludeFromPayingFees(address user) external onlyAdmin {
         require(user != address(0xdead) && user != dexPair, "Exilon: Wrong address");
         require(_excludedFromPayingFees.add(user) == true, "Exilon: Already excluded");
     }
 
-    function includeToPayingFees(address user) external onlyWhenLiquidityAdded onlyAdmin {
+    function includeToPayingFees(address user) external onlyAdmin {
         require(user != address(0xdead) && user != dexPair, "Exilon: Wrong address");
         require(_excludedFromPayingFees.remove(user) == true, "Exilon: Already included");
+    }
+
+    function removeRestrictionsOnSell(address user) external onlyAdmin {
+        require(user != address(0xdead) && user != dexPair, "Exilon: Wrong address");
+        require(_noRestrictionsOnSell.add(user) == true, "Exilon: Already removed");
+    }
+
+    function imposeRestrictionsOnSell(address user) external onlyAdmin {
+        require(user != address(0xdead) && user != dexPair, "Exilon: Wrong address");
+        require(_noRestrictionsOnSell.remove(user) == true, "Exilon: Already imposed");
     }
 
     function name() external view virtual override returns (string memory) {
@@ -363,7 +373,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             address _dexPair = dexPair;
             address weth = _weth;
 
-            _checkBuyRestrictionsOnStart(from, _dexPair, weth);
+            _checkBuyRestrictionsOnStart(to, _dexPair, weth);
             (fees, needToCheckFromBalance) = _getFeePercentages(from, to, _dexPair);
         }
 
@@ -563,12 +573,12 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     }
 
     function _checkBuyRestrictionsOnStart(
-        address from,
+        address to,
         address _dexPair,
         address weth
     ) private view {
         // only on buy tokens
-        if (from != _dexPair) {
+        if (to == _dexPair) {
             return;
         }
 
@@ -584,6 +594,12 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         // [420; 480) - 0.8 BNB
         // [480; 540) - 0.9 BNB
         // [540; 600) - 1 BNB
+        if (blocknumber < 600 && msg.sender != _dexPair) {
+            // no flash loans and contracts on start
+            // only users
+            // solhint-disable-next-line avoid-tx-origin
+            require(msg.sender == tx.origin, "Exilon: No contracts");
+        }
 
         if (blocknumber < 60) {
             _checkBuyAmountCeil(_dexPair, 1 ether / 10, weth);
@@ -674,7 +690,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 } else if (blocknumber < 350) {
                     return ([uint256(22), 1, 1], false);
                 } else {
-                    return ([23 - ((blocknumber - 350) / 100), 1, 1], false);
+                    return ([21 - ((blocknumber - 350) / 100), 1, 1], false);
                 }
             } else {
                 return ([uint256(0), 0, 0], true);

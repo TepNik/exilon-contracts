@@ -14,6 +14,8 @@ require('dotenv').config();
 const {
 } = process.env;
 
+let testsWithOutput = true;
+
 const MINUS_ONE = new BN(-1);
 const ZERO = new BN(0);
 const ONE = new BN(1);
@@ -178,15 +180,6 @@ describe('Exilon test', () => {
         );
         await expectRevert(
             ExilonInst.includeToFeesDistribution(distributionAddress1, { from: exilonAdmin }),
-            "Exilon: Liquidity not added"
-        );
-
-        await expectRevert(
-            ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin }),
-            "Exilon: Liquidity not added"
-        );
-        await expectRevert(
-            ExilonInst.includeToPayingFees(distributionAddress1, { from: exilonAdmin }),
             "Exilon: Liquidity not added"
         );
     })
@@ -420,6 +413,12 @@ describe('Exilon test', () => {
             ONE_ETH.div(TEN),
             [ZERO, ZERO, ZERO]
         );
+
+        await checkSell(
+            distributionAddress1,
+            await ExilonInst.balanceOf(distributionAddress1),
+            [ZERO, ZERO, ZERO]
+        );
     })
 
     it("Test buy and sell without fees and fixed account", async () => {
@@ -436,10 +435,17 @@ describe('Exilon test', () => {
             ONE_ETH.div(TEN),
             [ZERO, ZERO, ZERO]
         );
+
+        await checkSell(
+            distributionAddress5,
+            await ExilonInst.balanceOf(distributionAddress5),
+            [ZERO, ZERO, ZERO]
+        );
     })
 
     it("Test buy and sell with fees and notFixed account", async () => {
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN).mul(TEN) });
+        let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+        let blocknumber = new BN(tx.receipt.blockNumber);
         await makeFixedAddress(distributionAddress5);
         await makeFixedAddress(distributionAddress6);
         await makeFixedAddress(distributionAddress7);
@@ -450,10 +456,49 @@ describe('Exilon test', () => {
             ONE_ETH.div(TEN),
             [EIGHT, ONE, ONE]
         );
+
+        await checkSell(
+            distributionAddress1,
+            (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
+            [new BN("23"), ONE, ONE]
+        );
+        await time.advanceBlockTo(blocknumber.add(new BN("200")));
+        await checkSell(
+            distributionAddress1,
+            (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
+            [new BN("22"), ONE, ONE]
+        );
+        await time.advanceBlockTo(blocknumber.add(new BN("350")));
+
+        let startBlock = blocknumber.add(new BN("350"));
+        let step = new BN("100");
+        for (let i = 0; i < 13; ++i) {
+            let index = new BN(i);
+            await checkSell(
+                distributionAddress1,
+                (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
+                [(new BN("21")).sub(index), ONE, ONE]
+            );
+
+            let newBlocknumber = startBlock.add(step.mul(index.add(ONE)));
+            await time.advanceBlockTo(newBlocknumber);
+        }
+
+        await checkSell(
+            distributionAddress1,
+            (await ExilonInst.balanceOf(distributionAddress1)).div(TWO).sub(ONE),
+            [EIGHT, ONE, ONE]
+        );
+        await checkSell(
+            distributionAddress1,
+            (await ExilonInst.balanceOf(distributionAddress1)).div(TWO),
+            [new BN("13"), ONE, ONE]
+        );
     })
 
     it("Test buy and sell with fees and fixed account", async () => {
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN).mul(TEN) });
+        let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+        let blocknumber = new BN(tx.receipt.blockNumber);
         await makeFixedAddress(distributionAddress5);
         await makeFixedAddress(distributionAddress6);
         await makeFixedAddress(distributionAddress7);
@@ -462,6 +507,100 @@ describe('Exilon test', () => {
         await checkBuy(
             distributionAddress5,
             ONE_ETH.div(TEN),
+            [EIGHT, ONE, ONE]
+        );
+
+        await checkSell(
+            distributionAddress5,
+            (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
+            [new BN("23"), ONE, ONE]
+        );
+        await time.advanceBlockTo(blocknumber.add(new BN("200")));
+        await checkSell(
+            distributionAddress5,
+            (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
+            [new BN("22"), ONE, ONE]
+        );
+        await time.advanceBlockTo(blocknumber.add(new BN("350")));
+
+        let startBlock = blocknumber.add(new BN("350"));
+        let step = new BN("100");
+        for (let i = 0; i < 13; ++i) {
+            let index = new BN(i);
+            await checkSell(
+                distributionAddress5,
+                (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
+                [(new BN("21")).sub(index), ONE, ONE]
+            );
+
+            let newBlocknumber = startBlock.add(step.mul(index.add(ONE)));
+            await time.advanceBlockTo(newBlocknumber);
+        }
+
+        await checkSell(
+            distributionAddress5,
+            (await ExilonInst.balanceOf(distributionAddress5)).div(TWO).sub(ONE),
+            [EIGHT, ONE, ONE]
+        );
+        await checkSell(
+            distributionAddress5,
+            (await ExilonInst.balanceOf(distributionAddress5)).div(TWO),
+            [new BN("13"), ONE, ONE]
+        );
+    })
+
+    it("Test buy and sell with no restrictions on sell and notFixed account", async () => {
+        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
+
+        await ExilonInst.removeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin });
+
+        await checkBuy(
+            distributionAddress1,
+            ONE_ETH.div(TEN),
+            [EIGHT, ONE, ONE]
+        );
+
+        await checkSell(
+            distributionAddress1,
+            (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
+            [EIGHT, ONE, ONE]
+        );
+
+        await checkSell(
+            distributionAddress1,
+            await ExilonInst.balanceOf(distributionAddress1),
+            [EIGHT, ONE, ONE]
+        );
+    })
+
+    it("Test buy and sell with no restrictions on sell and fixed account", async () => {
+        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
+
+        await ExilonInst.removeRestrictionsOnSell(distributionAddress5, { from: exilonAdmin });
+
+        await checkBuy(
+            distributionAddress5,
+            ONE_ETH.div(TEN),
+            [EIGHT, ONE, ONE]
+        );
+
+        await checkSell(
+            distributionAddress5,
+            (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
+            [EIGHT, ONE, ONE]
+        );
+
+        await checkSell(
+            distributionAddress5,
+            await ExilonInst.balanceOf(distributionAddress5),
             [EIGHT, ONE, ONE]
         );
     })
@@ -545,6 +684,80 @@ describe('Exilon test', () => {
         );
     })
 
+    it("Test excludeFromPayingFees and includeToPayingFees", async () => {
+        await expectRevert(
+            ExilonInst.excludeFromPayingFees(distributionAddress2, { from: distributionAddress1}),
+            "Exilon: Sender is not admin"
+        );
+
+        await expectRevert(
+            ExilonInst.includeToPayingFees(distributionAddress2, { from: exilonAdmin}),
+            "Exilon: Already included"
+        );
+
+        expect(await ExilonInst.excludedFromPayingFeesLen()).to.be.bignumber.equals(ZERO);
+        expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress1)).to.be.false;
+        expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress2)).to.be.false;
+
+        await ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin});
+        await expectRevert(
+            ExilonInst.excludeFromPayingFees(distributionAddress1, { from: exilonAdmin}),
+            "Exilon: Already excluded"
+        );
+
+        expect(await ExilonInst.excludedFromPayingFeesLen()).to.be.bignumber.equals(ONE);
+        expect(await ExilonInst.getExcludedFromPayingFeesAt(ZERO)).to.be.bignumber.equals(distributionAddress1);
+        expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress1)).to.be.true;
+        expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress2)).to.be.false;
+
+        await ExilonInst.includeToPayingFees(distributionAddress1, { from: exilonAdmin});
+        await expectRevert(
+            ExilonInst.includeToPayingFees(distributionAddress1, { from: exilonAdmin}),
+            "Exilon: Already included"
+        );
+
+        expect(await ExilonInst.excludedFromPayingFeesLen()).to.be.bignumber.equals(ZERO);
+        expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress1)).to.be.false;
+        expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress2)).to.be.false;
+    })
+
+    it("Test removeRestrictionsOnSell and imposeRestrictionsOnSell", async () => {
+        await expectRevert(
+            ExilonInst.removeRestrictionsOnSell(distributionAddress2, { from: distributionAddress1}),
+            "Exilon: Sender is not admin"
+        );
+
+        await expectRevert(
+            ExilonInst.imposeRestrictionsOnSell(distributionAddress2, { from: exilonAdmin}),
+            "Exilon: Already imposed"
+        );
+
+        expect(await ExilonInst.noRestrictionsOnSellLen()).to.be.bignumber.equals(ZERO);
+        expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress1)).to.be.false;
+        expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress2)).to.be.false;
+
+        await ExilonInst.removeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin});
+        await expectRevert(
+            ExilonInst.removeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin}),
+            "Exilon: Already removed"
+        );
+
+        expect(await ExilonInst.noRestrictionsOnSellLen()).to.be.bignumber.equals(ONE);
+        expect(await ExilonInst.getNoRestrictionsOnSellAt(ZERO)).to.be.bignumber.equals(distributionAddress1);
+        expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress1)).to.be.true;
+        expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress2)).to.be.false;
+
+        await ExilonInst.imposeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin});
+        await expectRevert(
+            ExilonInst.imposeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin}),
+            "Exilon: Already imposed"
+        );
+
+        expect(await ExilonInst.noRestrictionsOnSellLen()).to.be.bignumber.equals(ZERO);
+        expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress1)).to.be.false;
+        expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress2)).to.be.false;
+    })
+
 
 
     async function makeFixedAddress(user) {
@@ -559,6 +772,99 @@ describe('Exilon test', () => {
 
         fixedAddresses = removeFromArray(fixedAddresses, user);
         notFixedAddresses.push(user);
+    }
+
+    async function checkSell(from, amount, feePercentages) {
+        let balanceFromBefore = await ExilonInst.balanceOf(from);
+        let balanceDexPairBefore = await ExilonInst.balanceOf(ExilonDexPairInst.address);
+        let feeAmountBefore = await ExilonInst.feeAmountInTokens();
+        let burnAddressBalanceBefore = await ExilonInst.balanceOf(BURN_ADDRESS);
+
+        let fixedAddressesBalancesBefore = [];
+        for (let i = 0; i < fixedAddresses.length; ++i) {
+            fixedAddressesBalancesBefore[i] = await ExilonInst.balanceOf(fixedAddresses[i]);
+        }
+
+        let notFixedAddressesBalancesBefore = [];
+        let notFixedBalancesBefore = ZERO;
+        for (let i = 0; i < notFixedAddresses.length; ++i) {
+            notFixedAddressesBalancesBefore[i] = await ExilonInst.balanceOf(notFixedAddresses[i]);
+            notFixedBalancesBefore = notFixedBalancesBefore.add(notFixedAddressesBalancesBefore[i]);
+        }
+
+        let path = [ExilonInst.address, WETHInst.address];
+        let amountsOut = await PancakeRouterInst.getAmountsOut(amount, path);
+        await ExilonInst.approve(PancakeRouterInst.address, amount, { from: from });
+        let tx = await PancakeRouterInst.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            amount,
+            ZERO,
+            path,
+            from,
+            DEADLINE,
+            { from: from }
+        );
+        let gasAmount = tx.receipt.gasUsed;
+        if (testsWithOutput) {
+            console.log("Gas for sell =", gasAmount);
+        }
+
+        let balanceFromAfter = await ExilonInst.balanceOf(from);
+        let balanceDexPairAfter = await ExilonInst.balanceOf(ExilonDexPairInst.address);
+        let feeAmountAfter = await ExilonInst.feeAmountInTokens();
+        let burnAddressBalanceAfter = await ExilonInst.balanceOf(BURN_ADDRESS);
+
+        let fixedAddressesBalancesAfter = [];
+        for (let i = 0; i < fixedAddresses.length; ++i) {
+            fixedAddressesBalancesAfter[i] = await ExilonInst.balanceOf(fixedAddresses[i]);
+        }
+
+        let notFixedAddressesBalancesAfter = [];
+        let notFixedBalancesAfter = ZERO;
+        for (let i = 0; i < notFixedAddresses.length; ++i) {
+            notFixedAddressesBalancesAfter[i] = await ExilonInst.balanceOf(notFixedAddresses[i]);
+            notFixedBalancesAfter = notFixedBalancesAfter.add(notFixedAddressesBalancesAfter[i]);
+        }
+
+        let lpAmount = amount.mul(feePercentages[0]).div(new BN("100"));
+        let burnAmount = amount.mul(feePercentages[1]).div(new BN("100"));
+        let distributionAmount = amount.mul(feePercentages[2]).div(new BN("100"));
+        let transferAmount = amount.sub(lpAmount).sub(burnAmount).sub(distributionAmount);
+
+        isNear(balanceDexPairAfter.sub(balanceDexPairBefore), transferAmount);
+        isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount);
+        isNear(burnAddressBalanceAfter.sub(burnAddressBalanceBefore), burnAmount);
+
+        for (let i = 0; i < fixedAddresses.length; ++i) {
+            if (fixedAddresses[i] != from && fixedAddresses[i] != ExilonDexPairInst.address && fixedAddresses[i] != BURN_ADDRESS) {
+                expect(fixedAddressesBalancesAfter[i].sub(fixedAddressesBalancesBefore[i])).to.be.bignumber.equals(ZERO);
+            }
+        }
+
+        let isFromNotFixed = notFixedAddresses.indexOf(from) != -1;
+        if (isFromNotFixed) {
+            isNear(notFixedBalancesBefore.sub(notFixedBalancesAfter), amount.sub(distributionAmount));
+        } else if (!isFromNotFixed) {
+            isNear(notFixedBalancesAfter.sub(notFixedBalancesBefore), distributionAmount);
+        }
+
+        if (isFromNotFixed == false) {
+            isNear(balanceFromBefore.sub(balanceFromAfter), amount);
+        }
+
+        for (let i = 0; i < notFixedAddresses.length; ++i) {
+            let amountToGet = notFixedAddressesBalancesAfter[i].mul(distributionAmount).div(notFixedBalancesAfter);
+            if (notFixedAddresses[i] != from) {
+                isNear(
+                    notFixedAddressesBalancesAfter[i].sub(notFixedAddressesBalancesBefore[i]),
+                    amountToGet
+                );
+            } else if (notFixedAddresses[i] == from) {
+                isNear(
+                    notFixedAddressesBalancesBefore[i].sub(notFixedAddressesBalancesAfter[i]),
+                    amount.sub(amountToGet)
+                );
+            }
+        }
     }
 
     async function checkBuy(from, amount, feePercentages) {
@@ -589,7 +895,9 @@ describe('Exilon test', () => {
             { from: from, value: amount }
         );
         let gasAmount = tx.receipt.gasUsed;
-        console.log("Gas for swap =", gasAmount);
+        if (testsWithOutput) {
+            console.log("Gas for buy =", gasAmount);
+        }
 
         let balanceFromAfter = await ExilonInst.balanceOf(from);
         let balanceDexPairAfter = await ExilonInst.balanceOf(ExilonDexPairInst.address);
@@ -670,7 +978,9 @@ describe('Exilon test', () => {
 
         let tx = await ExilonInst.transfer(to, amount, { from: from });
         let gasAmount = tx.receipt.gasUsed;
-        //console.log("Gas for transfer =", gasAmount);
+        if (testsWithOutput) {
+            console.log("Gas for transfer =", gasAmount);
+        }
 
         let balanceFromAfter = await ExilonInst.balanceOf(from);
         let balanceToAfter = await ExilonInst.balanceOf(to);
