@@ -384,7 +384,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         } else if (isFromFixed == false && isToFixed == true) {
             _trasnferFromNotFixedToFixed(from, to, amount, fees, needToCheckFromBalance);
         } else if (isFromFixed == false && isToFixed == false) {
-            _transferFromNotFixedToNotFixed(from, to, amount, fees, needToCheckFromBalance);
+            _transferBetweenNotFixed(from, to, amount, fees, needToCheckFromBalance);
         }
     }
 
@@ -518,7 +518,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         emit Transfer(from, to, transferAmount);
     }
 
-    function _transferFromNotFixedToNotFixed(
+    function _transferBetweenNotFixed(
         address from,
         address to,
         uint256 amount,
