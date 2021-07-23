@@ -57,6 +57,7 @@ contract PancakePair is IPancakePair, PancakeERC20 {
         address to,
         uint256 value
     ) private {
+        //IERC20(token).transfer(to, value);
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(SELECTOR, to, value));
         require(
             success && (data.length == 0 || abi.decode(data, (bool))),

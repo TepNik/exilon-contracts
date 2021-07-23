@@ -107,6 +107,7 @@ describe('Exilon contract tests', () => {
         fixedAddresses.push(BURN_ADDRESS);
 
         notFixedAddresses = [];
+        notFixedAddresses.push(exilonAdmin);
         notFixedAddresses.push(distributionAddress1);
         notFixedAddresses.push(distributionAddress2);
         notFixedAddresses.push(distributionAddress3);
@@ -133,6 +134,8 @@ describe('Exilon contract tests', () => {
 
         let amountToLiqidity = TOTAL_SUPPLY.mul(EIGHT).div(TEN);
         expect(await ExilonInst.balanceOf(ExilonInst.address)).to.be.bignumber.equals(amountToLiqidity);
+
+        expect(await ExilonInst.balanceOf(exilonAdmin)).to.be.bignumber.equals(ZERO);
 
         let amountToDistribution = TOTAL_SUPPLY.sub(amountToLiqidity);
         expect(await ExilonInst.balanceOf(distributionAddress1)).to.be.bignumber.equals(amountToDistribution.div(EIGHT));
@@ -656,6 +659,181 @@ describe('Exilon contract tests', () => {
         })
     })
 
+    describe("Adding and removing liquidity", () => {
+        let liquidityAmount = ONE_ETH.mul(new BN("8000000000000"));
+
+        describe("No fees", () => {
+            it("Not fixed account", async () => {
+                let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
+                let blocknumber = new BN(tx.receipt.blockNumber);
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                await ExilonInst.excludeFromPayingFees(exilonAdmin, { from: exilonAdmin });
+
+                await checkRemoveLiquidity(
+                    exilonAdmin,
+                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    [ZERO, ZERO, ZERO]
+                );
+
+                await checkAddLiquidity(
+                    exilonAdmin,
+                    await ExilonInst.balanceOf(exilonAdmin),
+                    [ZERO, ZERO, ZERO]
+                );
+
+                await time.advanceBlockTo(blocknumber.add(new BN("300")));
+                await time.advanceBlockTo(blocknumber.add(new BN("600")));
+                await time.advanceBlockTo(blocknumber.add(new BN("900")));
+                await time.advanceBlockTo(blocknumber.add(new BN("1200")));
+                await time.advanceBlockTo(blocknumber.add(new BN("1500")));
+                await time.advanceBlockTo(blocknumber.add(new BN("1650")));
+
+                await checkRemoveLiquidity(
+                    exilonAdmin,
+                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    [ZERO, ZERO, ZERO]
+                );
+
+                await checkAddLiquidity(
+                    exilonAdmin,
+                    await ExilonInst.balanceOf(exilonAdmin),
+                    [ZERO, ZERO, ZERO]
+                );
+            })
+
+            it("Fixed account", async () => {
+                let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
+                let blocknumber = new BN(tx.receipt.blockNumber);
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                await makeFixedAddress(exilonAdmin);
+                await ExilonInst.excludeFromPayingFees(exilonAdmin, { from: exilonAdmin });
+
+                await checkRemoveLiquidity(
+                    exilonAdmin,
+                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    [ZERO, ZERO, ZERO]
+                );
+
+                await checkAddLiquidity(
+                    exilonAdmin,
+                    await ExilonInst.balanceOf(exilonAdmin),
+                    [ZERO, ZERO, ZERO]
+                );
+
+                await time.advanceBlockTo(blocknumber.add(new BN("300")));
+                await time.advanceBlockTo(blocknumber.add(new BN("600")));
+                await time.advanceBlockTo(blocknumber.add(new BN("900")));
+                await time.advanceBlockTo(blocknumber.add(new BN("1200")));
+                await time.advanceBlockTo(blocknumber.add(new BN("1500")));
+                await time.advanceBlockTo(blocknumber.add(new BN("1650")));
+
+                await checkRemoveLiquidity(
+                    exilonAdmin,
+                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    [ZERO, ZERO, ZERO]
+                );
+
+                await checkAddLiquidity(
+                    exilonAdmin,
+                    await ExilonInst.balanceOf(exilonAdmin),
+                    [ZERO, ZERO, ZERO]
+                );
+            })
+        })
+
+        describe("With fees", () => {
+            it("Not fixed account", async () => {
+                let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
+                let blocknumber = new BN(tx.receipt.blockNumber);
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                await checkRemoveLiquidity(
+                    exilonAdmin,
+                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    [EIGHT, ONE, ONE]
+                );
+
+                await checkAddLiquidity(
+                    exilonAdmin,
+                    await ExilonInst.balanceOf(exilonAdmin),
+                    [new BN("23"), ONE, ONE]
+                );
+
+                await time.advanceBlockTo(blocknumber.add(new BN("300")));
+                await time.advanceBlockTo(blocknumber.add(new BN("600")));
+                await time.advanceBlockTo(blocknumber.add(new BN("900")));
+                await time.advanceBlockTo(blocknumber.add(new BN("1200")));
+                await time.advanceBlockTo(blocknumber.add(new BN("1500")));
+                await time.advanceBlockTo(blocknumber.add(new BN("1650")));
+
+                await checkRemoveLiquidity(
+                    exilonAdmin,
+                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    [EIGHT, ONE, ONE]
+                );
+
+                await checkAddLiquidity(
+                    exilonAdmin,
+                    await ExilonInst.balanceOf(exilonAdmin),
+                    [new BN("13"), ONE, ONE]
+                );
+            })
+
+            it("Fixed account", async () => {
+                let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
+                let blocknumber = new BN(tx.receipt.blockNumber);
+                await makeFixedAddress(distributionAddress5);
+                await makeFixedAddress(distributionAddress6);
+                await makeFixedAddress(distributionAddress7);
+                await makeFixedAddress(distributionAddress8);
+
+                await makeFixedAddress(exilonAdmin);
+
+                await checkRemoveLiquidity(
+                    exilonAdmin,
+                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    [EIGHT, ONE, ONE]
+                );
+
+                await checkAddLiquidity(
+                    exilonAdmin,
+                    await ExilonInst.balanceOf(exilonAdmin),
+                    [new BN("23"), ONE, ONE]
+                );
+
+                await time.advanceBlockTo(blocknumber.add(new BN("300")));
+                await time.advanceBlockTo(blocknumber.add(new BN("600")));
+                await time.advanceBlockTo(blocknumber.add(new BN("900")));
+                await time.advanceBlockTo(blocknumber.add(new BN("1200")));
+                await time.advanceBlockTo(blocknumber.add(new BN("1500")));
+                await time.advanceBlockTo(blocknumber.add(new BN("1650")));
+
+                await checkRemoveLiquidity(
+                    exilonAdmin,
+                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    [EIGHT, ONE, ONE]
+                );
+
+                await checkAddLiquidity(
+                    exilonAdmin,
+                    await ExilonInst.balanceOf(exilonAdmin),
+                    [new BN("13"), ONE, ONE]
+                );
+            })
+        })
+    })
+
     it("exludeFromFeesDistribution() and includeToFeesDistribution()", async () => {
         await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
         await makeFixedAddress(distributionAddress5);
@@ -784,6 +962,215 @@ describe('Exilon contract tests', () => {
 
         fixedAddresses = removeFromArray(fixedAddresses, user);
         notFixedAddresses.push(user);
+    }
+
+    async function checkRemoveLiquidity(from, amount, feePercentages) {
+        let balanceFromBefore = await ExilonInst.balanceOf(from);
+        let balanceDexPairBefore = await ExilonInst.balanceOf(ExilonDexPairInst.address);
+        let feeAmountBefore = await ExilonInst.feeAmountInTokens();
+        let burnAddressBalanceBefore = await ExilonInst.balanceOf(BURN_ADDRESS);
+
+        let fixedAddressesBalancesBefore = [];
+        for (let i = 0; i < fixedAddresses.length; ++i) {
+            fixedAddressesBalancesBefore[i] = await ExilonInst.balanceOf(fixedAddresses[i]);
+        }
+
+        let notFixedAddressesBalancesBefore = [];
+        let notFixedBalancesBefore = ZERO;
+        for (let i = 0; i < notFixedAddresses.length; ++i) {
+            notFixedAddressesBalancesBefore[i] = await ExilonInst.balanceOf(notFixedAddresses[i]);
+            notFixedBalancesBefore = notFixedBalancesBefore.add(notFixedAddressesBalancesBefore[i]);
+        }
+
+        let tokenReserves;
+        let wethReserves;
+        let reserves = await ExilonDexPairInst.getReserves();
+        let token0 = await ExilonDexPairInst.token0();
+        if (token0 == WETHInst.address) {
+            wethReserves = reserves[0];
+            tokenReserves = reserves[1];
+        } else {
+            tokenReserves = reserves[0];
+            wethReserves = reserves[1];
+        }
+        let totalSupplyLp = await ExilonDexPairInst.totalSupply();
+
+        let tokenAmount = amount.mul(tokenReserves).div(totalSupplyLp);
+        let ethAmount = amount.mul(wethReserves).div(totalSupplyLp);
+
+        await ExilonDexPairInst.transfer(ExilonDexPairInst.address, amount, { from: from });
+        let tx = await ExilonDexPairInst.burn(from, { from: from });
+        let gasAmount = tx.receipt.gasUsed;
+        if (testsWithOutput) {
+            console.log("Gas removing liquidity =", gasAmount);
+        }
+
+        let balanceFromAfter = await ExilonInst.balanceOf(from);
+        let balanceDexPairAfter = await ExilonInst.balanceOf(ExilonDexPairInst.address);
+        let feeAmountAfter = await ExilonInst.feeAmountInTokens();
+        let burnAddressBalanceAfter = await ExilonInst.balanceOf(BURN_ADDRESS);
+
+        let fixedAddressesBalancesAfter = [];
+        for (let i = 0; i < fixedAddresses.length; ++i) {
+            fixedAddressesBalancesAfter[i] = await ExilonInst.balanceOf(fixedAddresses[i]);
+        }
+
+        let notFixedAddressesBalancesAfter = [];
+        let notFixedBalancesAfter = ZERO;
+        for (let i = 0; i < notFixedAddresses.length; ++i) {
+            notFixedAddressesBalancesAfter[i] = await ExilonInst.balanceOf(notFixedAddresses[i]);
+            notFixedBalancesAfter = notFixedBalancesAfter.add(notFixedAddressesBalancesAfter[i]);
+        }
+
+        let lpAmount = tokenAmount.mul(feePercentages[0]).div(new BN("100"));
+        let burnAmount = tokenAmount.mul(feePercentages[1]).div(new BN("100"));
+        let distributionAmount = tokenAmount.mul(feePercentages[2]).div(new BN("100"));
+        let transferAmount = tokenAmount.sub(lpAmount).sub(burnAmount).sub(distributionAmount);
+
+        isNear(balanceDexPairBefore.sub(balanceDexPairAfter), tokenAmount);
+        isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount);
+        isNear(burnAddressBalanceAfter.sub(burnAddressBalanceBefore), burnAmount);
+
+        for (let i = 0; i < fixedAddresses.length; ++i) {
+            if (fixedAddresses[i] != from && fixedAddresses[i] != ExilonDexPairInst.address && fixedAddresses[i] != BURN_ADDRESS) {
+                expect(fixedAddressesBalancesAfter[i].sub(fixedAddressesBalancesBefore[i])).to.be.bignumber.equals(ZERO);
+            }
+        }
+
+        let isFromNotFixed = notFixedAddresses.indexOf(from) != -1;
+        if (isFromNotFixed) {
+            isNear(notFixedBalancesAfter.sub(notFixedBalancesBefore), tokenAmount.sub(lpAmount).sub(burnAmount));
+        } else if (!isFromNotFixed) {
+            isNear(notFixedBalancesAfter.sub(notFixedBalancesBefore), distributionAmount);
+        }
+
+        if (isFromNotFixed == false) {
+            isNear(balanceFromAfter.sub(balanceFromBefore), transferAmount);
+        }
+
+        for (let i = 0; i < notFixedAddresses.length; ++i) {
+            let amountToGet = notFixedAddressesBalancesAfter[i].mul(distributionAmount).div(notFixedBalancesAfter);
+            if (notFixedAddresses[i] != from) {
+                isNear(
+                    notFixedAddressesBalancesAfter[i].sub(notFixedAddressesBalancesBefore[i]),
+                    amountToGet
+                );
+            } else if (notFixedAddresses[i] == from) {
+                isNear(
+                    notFixedAddressesBalancesAfter[i].sub(notFixedAddressesBalancesBefore[i]),
+                    amountToGet.add(transferAmount)
+                );
+            }
+        }
+    }
+
+    async function checkAddLiquidity(from, amount, feePercentages) {
+        let balanceFromBefore = await ExilonInst.balanceOf(from);
+        let balanceDexPairBefore = await ExilonInst.balanceOf(ExilonDexPairInst.address);
+        let feeAmountBefore = await ExilonInst.feeAmountInTokens();
+        let burnAddressBalanceBefore = await ExilonInst.balanceOf(BURN_ADDRESS);
+
+        let fixedAddressesBalancesBefore = [];
+        for (let i = 0; i < fixedAddresses.length; ++i) {
+            fixedAddressesBalancesBefore[i] = await ExilonInst.balanceOf(fixedAddresses[i]);
+        }
+
+        let notFixedAddressesBalancesBefore = [];
+        let notFixedBalancesBefore = ZERO;
+        for (let i = 0; i < notFixedAddresses.length; ++i) {
+            notFixedAddressesBalancesBefore[i] = await ExilonInst.balanceOf(notFixedAddresses[i]);
+            notFixedBalancesBefore = notFixedBalancesBefore.add(notFixedAddressesBalancesBefore[i]);
+        }
+
+        let tokenReserves;
+        let wethReserves;
+        let reserves = await ExilonDexPairInst.getReserves();
+        let token0 = await ExilonDexPairInst.token0();
+        if (token0 == WETHInst.address) {
+            wethReserves = reserves[0];
+            tokenReserves = reserves[1];
+        } else {
+            tokenReserves = reserves[0];
+            wethReserves = reserves[1];
+        }
+        let amountEth = await PancakeRouterInst.quote(
+            amount,
+            tokenReserves,
+            wethReserves
+        );
+
+        await ExilonInst.approve(PancakeRouterInst.address, amount, { from: from });
+        let tx = await PancakeRouterInst.addLiquidityETH(
+            ExilonInst.address,
+            amount,
+            ZERO,
+            ZERO,
+            from,
+            DEADLINE,
+            { from: from, value: amountEth }
+        );
+        let gasAmount = tx.receipt.gasUsed;
+        if (testsWithOutput) {
+            console.log("Gas add liquidity =", gasAmount);
+        }
+
+        let balanceFromAfter = await ExilonInst.balanceOf(from);
+        let balanceDexPairAfter = await ExilonInst.balanceOf(ExilonDexPairInst.address);
+        let feeAmountAfter = await ExilonInst.feeAmountInTokens();
+        let burnAddressBalanceAfter = await ExilonInst.balanceOf(BURN_ADDRESS);
+
+        let fixedAddressesBalancesAfter = [];
+        for (let i = 0; i < fixedAddresses.length; ++i) {
+            fixedAddressesBalancesAfter[i] = await ExilonInst.balanceOf(fixedAddresses[i]);
+        }
+
+        let notFixedAddressesBalancesAfter = [];
+        let notFixedBalancesAfter = ZERO;
+        for (let i = 0; i < notFixedAddresses.length; ++i) {
+            notFixedAddressesBalancesAfter[i] = await ExilonInst.balanceOf(notFixedAddresses[i]);
+            notFixedBalancesAfter = notFixedBalancesAfter.add(notFixedAddressesBalancesAfter[i]);
+        }
+
+        let lpAmount = amount.mul(feePercentages[0]).div(new BN("100"));
+        let burnAmount = amount.mul(feePercentages[1]).div(new BN("100"));
+        let distributionAmount = amount.mul(feePercentages[2]).div(new BN("100"));
+        let transferAmount = amount.sub(lpAmount).sub(burnAmount).sub(distributionAmount);
+
+        isNear(balanceDexPairAfter.sub(balanceDexPairBefore), transferAmount);
+        isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount);
+        isNear(burnAddressBalanceAfter.sub(burnAddressBalanceBefore), burnAmount);
+
+        for (let i = 0; i < fixedAddresses.length; ++i) {
+            if (fixedAddresses[i] != from && fixedAddresses[i] != ExilonDexPairInst.address && fixedAddresses[i] != BURN_ADDRESS) {
+                expect(fixedAddressesBalancesAfter[i].sub(fixedAddressesBalancesBefore[i])).to.be.bignumber.equals(ZERO);
+            }
+        }
+
+        let isFromNotFixed = notFixedAddresses.indexOf(from) != -1;
+        if (isFromNotFixed) {
+            isNear(notFixedBalancesBefore.sub(notFixedBalancesAfter), amount.sub(distributionAmount));
+        } else if (!isFromNotFixed) {
+            isNear(notFixedBalancesAfter.sub(notFixedBalancesBefore), distributionAmount);
+        }
+
+        if (isFromNotFixed == false) {
+            isNear(balanceFromBefore.sub(balanceFromAfter), amount);
+        }
+
+        for (let i = 0; i < notFixedAddresses.length; ++i) {
+            let amountToGet = notFixedAddressesBalancesAfter[i].mul(distributionAmount).div(notFixedBalancesAfter);
+            if (notFixedAddresses[i] != from) {
+                isNear(
+                    notFixedAddressesBalancesAfter[i].sub(notFixedAddressesBalancesBefore[i]),
+                    amountToGet
+                );
+            } else if (notFixedAddresses[i] == from) {
+                isNear(
+                    notFixedAddressesBalancesBefore[i].sub(notFixedAddressesBalancesAfter[i]),
+                    amount.sub(amountToGet)
+                );
+            }
+        }
     }
 
     async function checkSell(from, amount, feePercentages) {

@@ -14,9 +14,6 @@ import "./pancake-swap/interfaces/IPancakeFactory.sol";
 import "./pancake-swap/interfaces/IPancakePair.sol";
 import "./pancake-swap/interfaces/IWETH.sol";
 
-// Maded by TepNik
-// https://www.linkedin.com/in/nikita-tepelin/
-
 contract Exilon is IERC20, IERC20Metadata, AccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -195,9 +192,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     ) external virtual override onlyWhenLiquidityAdded returns (bool) {
         uint256 currentAllowance = _allowances[sender][_msgSender()];
         require(currentAllowance >= amount, "Exilon: Amount exceeds allowance");
-        unchecked {
-            _approve(sender, _msgSender(), currentAllowance - amount);
-        }
+        _approve(sender, _msgSender(), currentAllowance - amount);
 
         _transfer(sender, recipient, amount);
 
@@ -373,7 +368,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             address _dexPair = dexPair;
             address weth = _weth;
 
-            _checkBuyRestrictionsOnStart(to, _dexPair, weth);
+            _checkBuyRestrictionsOnStart(from, _dexPair, weth);
             (fees, needToCheckFromBalance) = _getFeePercentages(from, to, _dexPair);
         }
 
@@ -397,9 +392,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     ) private {
         uint256 fixedBalanceFrom = _fixedBalances[from];
         require(fixedBalanceFrom >= amount, "Exilon: Amount exceeds balance");
-        unchecked {
-            _fixedBalances[from] = (fixedBalanceFrom - amount);
-        }
+        _fixedBalances[from] = (fixedBalanceFrom - amount);
 
         fees = _getFeeAmounts(fees, amount, fixedBalanceFrom, needToCheckFromBalance);
 
@@ -434,9 +427,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     ) private {
         uint256 fixedBalanceFrom = _fixedBalances[from];
         require(fixedBalanceFrom >= amount, "Exilon: Amount exceeds balance");
-        unchecked {
-            _fixedBalances[from] = (fixedBalanceFrom - amount);
-        }
+        _fixedBalances[from] = (fixedBalanceFrom - amount);
 
         fees = _getFeeAmounts(fees, amount, fixedBalanceFrom, needToCheckFromBalance);
         if (fees[0] > 0) {
@@ -483,9 +474,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
         uint256 notFixedBalanceFrom = _notFixedBalances[from];
         require(notFixedBalanceFrom >= notFixedAmount, "Exilon: Amount exceeds balance");
-        unchecked {
-            _notFixedBalances[from] = (notFixedBalanceFrom - notFixedAmount);
-        }
+        _notFixedBalances[from] = (notFixedBalanceFrom - notFixedAmount);
 
         fees = _getFeeAmounts(
             fees,
@@ -533,9 +522,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
         uint256 notFixedBalanceFrom = _notFixedBalances[from];
         require(notFixedBalanceFrom >= notFixedAmount, "Exilon: Amount exceeds balance");
-        unchecked {
-            _notFixedBalances[from] = (notFixedBalanceFrom - notFixedAmount);
-        }
+        _notFixedBalances[from] = (notFixedBalanceFrom - notFixedAmount);
 
         fees = _getFeeAmounts(fees, notFixedAmount, notFixedBalanceFrom, needToCheckFromBalance);
         uint256 fixedLpAmount = (fees[0] * notFixedExternalTotalSupply) /
@@ -573,12 +560,12 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     }
 
     function _checkBuyRestrictionsOnStart(
-        address to,
+        address from,
         address _dexPair,
         address weth
     ) private view {
         // only on buy tokens
-        if (to == _dexPair) {
+        if (from != _dexPair) {
             return;
         }
 
@@ -594,12 +581,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         // [420; 480) - 0.8 BNB
         // [480; 540) - 0.9 BNB
         // [540; 600) - 1 BNB
-        if (blocknumber < 600 && msg.sender != _dexPair) {
-            // no flash loans and contracts on start
-            // only users
-            // solhint-disable-next-line avoid-tx-origin
-            require(msg.sender == tx.origin, "Exilon: No contracts");
-        }
 
         if (blocknumber < 60) {
             _checkBuyAmountCeil(_dexPair, 1 ether / 10, weth);
@@ -641,7 +622,10 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         }
 
         uint256 trueWethBalance = IERC20(weth).balanceOf(_dexPair);
-        require(trueWethBalance - reserveWeth <= amount, "Exilon: To big buy amount");
+        if (trueWethBalance >= reserveWeth) {
+            // if not removing lp
+            require(trueWethBalance - reserveWeth <= amount, "Exilon: To big buy amount");
+        }
     }
 
     function _getFeePercentages(
