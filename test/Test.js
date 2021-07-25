@@ -168,6 +168,11 @@ describe('Exilon contract tests', () => {
         );
 
         await expectRevert(
+            ExilonInst.forceLpFeesDistribute({ from: exilonAdmin }),
+            "Exilon: Liquidity not added"
+        );
+
+        await expectRevert(
             ExilonInst.addLiquidity({ from: distributionAddress1 }),
             "Exilon: Sender is not admin"
         );
