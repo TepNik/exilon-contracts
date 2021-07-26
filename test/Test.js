@@ -66,6 +66,7 @@ describe('Exilon contract tests', () => {
     const [
         feeToSetter,
         exilonAdmin,
+        defaultLpMintAddress,
         distributionAddress1,
         distributionAddress2,
         distributionAddress3,
@@ -77,6 +78,7 @@ describe('Exilon contract tests', () => {
     ] = accounts;
 
     let defaultAdminRole;
+    let liquidityAmount = ONE_ETH.mul(new BN("8000000000000"));
 
     beforeEach(async () => {
         WETHInst = await WETH.new();
@@ -95,6 +97,7 @@ describe('Exilon contract tests', () => {
                 distributionAddress7,
                 distributionAddress8,
             ],
+            defaultLpMintAddress,
             { from: exilonAdmin }
         );
 
@@ -124,11 +127,15 @@ describe('Exilon contract tests', () => {
         expect(await ExilonInst.dexRouter()).to.be.equals(PancakeRouterInst.address);
         expect(await ExilonInst.dexPair()).to.be.equals(ExilonDexPairInst.address);
 
+        expect(await ExilonInst.defaultLpMintAddress()).to.be.equals(defaultLpMintAddress);
+
         expect(await ExilonInst.name()).to.be.equals(NAME);
         expect(await ExilonInst.symbol()).to.be.equals(SYMBOL);
         expect(await ExilonInst.decimals()).to.be.bignumber.equals(DECIMALS);
 
         expect(await ExilonInst.totalSupply()).to.be.bignumber.equals(TOTAL_SUPPLY);
+
+        expect(await ExilonInst.wethLimitForLpFee()).to.be.bignumber.equals(TWO.mul(ONE_ETH));
 
         expect(await ExilonInst.hasRole(defaultAdminRole, exilonAdmin)).to.be.true;
 
@@ -665,8 +672,6 @@ describe('Exilon contract tests', () => {
     })
 
     describe("Adding and removing liquidity", () => {
-        let liquidityAmount = ONE_ETH.mul(new BN("8000000000000"));
-
         describe("No fees", () => {
             it("Not fixed account", async () => {
                 let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
@@ -837,6 +842,122 @@ describe('Exilon contract tests', () => {
                 );
             })
         })
+    })
+
+    describe("Distribute fees to lp", () => {
+        it("Not adding when removing lp and selling", async () => {
+            await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
+            await makeFixedAddress(distributionAddress5);
+            await makeFixedAddress(distributionAddress6);
+            await makeFixedAddress(distributionAddress7);
+            await makeFixedAddress(distributionAddress8);
+
+            // removing lp
+            let feeAmountBefore = await ExilonInst.feeAmountInTokens();
+            await ExilonInst.setWethLimitForLpFee(ZERO, { from: exilonAdmin });
+
+            let adminBalance = await ExilonDexPairInst.balanceOf(exilonAdmin);
+            await ExilonDexPairInst.transfer(ExilonDexPairInst.address, adminBalance.div(TWO), { from: exilonAdmin });
+            await ExilonDexPairInst.burn(exilonAdmin, { from: exilonAdmin });
+            let feeAmountAfter = await ExilonInst.feeAmountInTokens();
+
+            //console.log("Before =". feeAmountBefore.toString());
+            //console.log("After =". feeAmountAfter.toString());
+            expect(feeAmountAfter).to.be.bignumber.above(feeAmountBefore);
+            expect(feeAmountAfter).not.to.be.bignumber.equals(ZERO);
+
+            // selling
+            feeAmountBefore = await ExilonInst.feeAmountInTokens();
+
+            let path = [WETHInst.address, ExilonInst.address];
+            await PancakeRouterInst.swapExactETHForTokensSupportingFeeOnTransferTokens(
+                ZERO,
+                path,
+                exilonAdmin,
+                DEADLINE,
+                { from: exilonAdmin, value: ONE_ETH.div(TEN) }
+            );
+
+            feeAmountAfter = await ExilonInst.feeAmountInTokens();
+
+            expect(feeAmountAfter).to.be.bignumber.above(feeAmountBefore);
+            expect(feeAmountAfter).not.to.be.bignumber.equals(ZERO);
+        })
+    })
+
+    /* it("Stop burn at 60%", async () => {
+        await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
+
+        await checkRemoveLiquidity(
+            exilonAdmin,
+            await ExilonDexPairInst.balanceOf(exilonAdmin),
+            [EIGHT, ONE, ONE]
+        );
+
+        let from = distributionAddress1;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress2;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress3;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress4;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress5;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress6;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress7;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress8;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+
+        let totalSupply = await ExilonInst.totalSupply();
+        let maxBurnAmount = totalSupply.mul(SIX).div(TEN);
+        let burnAmount = await ExilonInst.balanceOf(BURN_ADDRESS);
+        let transferAmount = await ExilonInst.balanceOf(exilonAdmin);
+        let feeAmount = transferAmount.mul(ONE).div(new BN("100"));
+
+        while(burnAmount.add(feeAmount).lt(maxBurnAmount)) {
+            await ExilonInst.transfer(exilonAdmin, transferAmount, { from: exilonAdmin });
+
+            burnAmount = await ExilonInst.balanceOf(BURN_ADDRESS);
+            transferAmount = await ExilonInst.balanceOf(exilonAdmin);
+            feeAmount = transferAmount.mul(ONE).div(new BN("100"));
+
+            console.log("Burn amount = ", burnAmount.toString());
+            console.log("Fee amount = ", feeAmount.toString());
+            console.log("Max amount = ", maxBurnAmount.toString());
+        }
+    }) */
+
+    it("setDefaultLpMintAddress()", async () => {
+        await expectRevert(
+            ExilonInst.setDefaultLpMintAddress(
+                BURN_ADDRESS,
+                { from: distributionAddress1 }
+            ),
+            "Exilon: Sender is not admin"
+        );
+
+        await ExilonInst.setDefaultLpMintAddress(BURN_ADDRESS, { from: exilonAdmin });
+        expect(await ExilonInst.defaultLpMintAddress()).to.be.equals(BURN_ADDRESS);
+    })
+
+    it("setWethLimitForLpFee()", async () => {
+        await expectRevert(
+            ExilonInst.setWethLimitForLpFee(
+                ZERO,
+                { from: distributionAddress1 }
+            ),
+            "Exilon: Sender is not admin"
+        );
+
+        await ExilonInst.setWethLimitForLpFee(ONE, { from: exilonAdmin });
+        expect(await ExilonInst.wethLimitForLpFee()).to.be.bignumber.equals(ONE);
     })
 
     it("exludeFromFeesDistribution() and includeToFeesDistribution()", async () => {
@@ -1455,114 +1576,6 @@ describe('Exilon contract tests', () => {
                     amount.sub(amountToGet)
                 );
             }
-        }
-    }
-
-    async function addLiqudity(token, receiver) {
-        const tokensToLiquidity = getRandomBNFromTo(minTokenLiquidity, maxTokenLiquidity);
-        const ethToLiquidity = getRandomBNFromTo(minEthLiquidity, maxEthLiquidity);
-
-        if (token == WETHInst || token == constants.ZERO_ADDRESS) {
-            return;
-        }
-        await token.mint(tokensToLiquidity);
-        await token.approve(PancakeRouterInst.address, tokensToLiquidity);
-
-        await PancakeRouterInst.addLiquidityETH(token.address, tokensToLiquidity, ZERO, ZERO, receiver, 10000000000000, { value: ethToLiquidity });
-    }
-
-    async function changePriceToken(token, receiver) {
-        const tokensToLiquidity = getRandomBNFromTo(minTokenLiquidity, maxTokenLiquidity).div(TEN).div(TEN);
-        const ethToLiquidity = getRandomBNFromTo(minEthLiquidity, maxEthLiquidity).div(TEN).div(TEN);
-
-        if (token == WETHInst || token == constants.ZERO_ADDRESS) {
-            return;
-        }
-        const pair = await PancakePair.at(await PancakeFactoryInst.getPair(token.address, WETHInst.address));
-
-        await token.mint(tokensToLiquidity);
-        await token.transfer(pair.address, tokensToLiquidity);
-        await WETHInst.deposit({ value: ethToLiquidity });
-        await WETHInst.transfer(pair.address, ethToLiquidity);
-
-        await pair.mint(receiver);
-    }
-
-    async function getBalance(token, user) {
-        if (token == constants.ZERO_ADDRESS) {
-            return new BN(await web3.eth.getBalance(user));
-        } else {
-            return await token.balanceOf(user);
-        }
-    }
-
-    async function getTokensPrices(tokens) {
-        const res = [];
-        for (let i = 0; i < tokens.length; ++i) {
-            if (tokens[i] == WETHInst.address || tokens[i] == constants.ZERO_ADDRESS) {
-                res[i] = ONE_ETH;
-            } else {
-                const pair = await PancakePair.at(await PancakeFactoryInst.getPair(tokens[i], WETHInst.address));
-                let tokenReserves;
-                let wethReserves;
-                let temp = await pair.getReserves();
-                if ((await pair.token0()) == tokens[i]) {
-                    tokenReserves = temp[0];
-                    wethReserves = temp[1];
-                } else {
-                    tokenReserves = temp[1];
-                    wethReserves = temp[0];
-                }
-                res[i] = await PancakeRouterInst.getAmountIn(ONE_TOKEN, wethReserves, tokenReserves);
-            }
-        }
-        return res;
-    }
-
-    async function getWethTokenPrice(token, amount, outputToken) {
-        if (outputToken == undefined) {
-            outputToken = WETHInst.address;
-        }
-        let res;
-        if (isEth(outputToken) && isEth(token)) {
-            res = amount;
-        } else if (outputToken == token) {
-            res = amount;
-        } else {
-            let path = [];
-            if (isEth(token)) {
-                path = [ifEthReturnWeth(token), outputToken];
-                res = await PancakeRouterInst.getAmountsOut(amount, path);
-                res = res[res.length - 1];
-            } else if (isEth(outputToken)) {
-                path = [token, ifEthReturnWeth(outputToken)];
-                res = await PancakeRouterInst.getAmountsOut(amount, path);
-                res = res[res.length - 1];
-            } else {
-                path = [token, WETHInst.address];
-                res = await PancakeRouterInst.getAmountsOut(amount, path);
-                amount = res[res.length - 1];
-                path = [WETHInst.address, outputToken];
-                res = await PancakeRouterInst.getAmountsOut(amount, path);
-                res = amount.add(res[res.length - 1]);
-            }
-        }
-        return res;
-    }
-
-    function isEth(token) {
-        if (token == WETHInst.address || token == constants.ZERO_ADDRESS) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    function ifEthReturnWeth(token) {
-        if (token == WETHInst.address || token == constants.ZERO_ADDRESS) {
-            return WETHInst.address;
-        } else {
-            return token;
         }
     }
 
