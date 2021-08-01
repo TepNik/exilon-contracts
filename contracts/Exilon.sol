@@ -14,6 +14,8 @@ import "./pancake-swap/interfaces/IPancakeFactory.sol";
 import "./pancake-swap/interfaces/IPancakePair.sol";
 import "./pancake-swap/interfaces/IWETH.sol";
 
+import "./WethReceiver.sol";
+
 contract Exilon is IERC20, IERC20Metadata, AccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -33,6 +35,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
     IPancakeRouter02 public immutable dexRouter;
     address public immutable dexPair;
+    address public wethReceiver;
 
     address public defaultLpMintAddress;
 
@@ -296,6 +299,11 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
     function setDefaultLpMintAddress(address value) external onlyAdmin {
         defaultLpMintAddress = value;
+    }
+
+    function setWethReceiver(address value) external onlyAdmin {
+        require(wethReceiver == address(0), "Exilon: Only once");
+        wethReceiver = value;
     }
 
     function name() external view virtual override returns (string memory) {
@@ -615,12 +623,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 poolInfo = _getDexPairInfo(poolInfo);
             }
 
-            uint256 contractBalance = poolInfo.thisContract.balance;
+            uint256 contractBalance = IERC20(poolInfo.weth).balanceOf(poolInfo.thisContract);
             uint256 wethFeesPrice = PancakeLibrary.getAmountOut(
                 _feeAmountInTokens,
                 poolInfo.tokenReserves,
                 poolInfo.wethReserves
             );
+
             if (
                 wethFeesPrice == 0 ||
                 (isForce == false && wethFeesPrice + contractBalance < wethLimitForLpFee)
@@ -665,12 +674,9 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                     } else {
                         amount0Out = amountOfWethToBuy;
                     }
-                    IPancakePair(poolInfo.dexPair).swap(
-                        amount0Out,
-                        amount1Out,
-                        poolInfo.thisContract,
-                        ""
-                    );
+                    address _wethReceiver = wethReceiver;
+                    IPancakePair(poolInfo.dexPair).swap(amount0Out, amount1Out, _wethReceiver, "");
+                    WethReceiver(_wethReceiver).getWeth(poolInfo.weth, amountOfWethToBuy);
                 }
                 _feeAmountInTokens -= amountTokenToSell;
                 contractBalance += amountOfWethToBuy;
@@ -678,7 +684,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 poolInfo.tokenReserves += amountTokenToSell;
                 poolInfo.wethReserves -= amountOfWethToBuy;
             } else {
-                amountOfWethToBuy = 0;
+                // amountOfWethToBuy = 0;
             }
 
             uint256 amountOfTokens = PancakeLibrary.quote(
@@ -687,7 +693,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 poolInfo.tokenReserves
             );
             if (amountOfTokens <= _feeAmountInTokens) {
-                _safeTransferETH(poolInfo.dexPair, contractBalance);
+                IERC20(poolInfo.weth).transfer(poolInfo.dexPair, contractBalance);
                 _fixedBalances[poolInfo.dexPair] += amountOfTokens;
                 feeAmountInTokens = _feeAmountInTokens - amountOfTokens;
 
@@ -699,7 +705,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                     poolInfo.wethReserves
                 );
 
-                _safeTransferETH(poolInfo.dexPair, amountOfWeth);
+                IERC20(poolInfo.weth).transfer(poolInfo.dexPair, amountOfWeth);
                 _fixedBalances[poolInfo.dexPair] += _feeAmountInTokens;
                 delete feeAmountInTokens;
 
