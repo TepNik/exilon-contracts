@@ -15,7 +15,7 @@ require('dotenv').config();
 const {
 } = process.env;
 
-let testsWithOutput = false;
+let testsWithOutput = true;
 
 const MINUS_ONE = new BN(-1);
 const ZERO = new BN(0);
@@ -953,19 +953,16 @@ describe('Exilon contract tests', () => {
                 );
             })
         })
-
-        it("Selling token", async () => {
-
-        })
     })
 
-    /* it("Stop burn at 60%", async () => {
+    it("Stop burn at 60% from 59%", async () => {
         await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
         await makeFixedAddress(distributionAddress5);
         await makeFixedAddress(distributionAddress6);
         await makeFixedAddress(distributionAddress7);
         await makeFixedAddress(distributionAddress8);
 
+        await ExilonInst.setWethLimitForLpFee(liquidityAmount, { from: exilonAdmin });
         await checkRemoveLiquidity(
             exilonAdmin,
             await ExilonDexPairInst.balanceOf(exilonAdmin),
@@ -992,21 +989,67 @@ describe('Exilon contract tests', () => {
         let totalSupply = await ExilonInst.totalSupply();
         let maxBurnAmount = totalSupply.mul(SIX).div(TEN);
         let burnAmount = await ExilonInst.balanceOf(BURN_ADDRESS);
-        let transferAmount = await ExilonInst.balanceOf(exilonAdmin);
-        let feeAmount = transferAmount.mul(ONE).div(new BN("100"));
 
-        while(burnAmount.add(feeAmount).lt(maxBurnAmount)) {
-            await ExilonInst.transfer(exilonAdmin, transferAmount, { from: exilonAdmin });
+        expect(await ExilonInst.balanceOf(exilonAdmin)).to.be.bignumber.above(maxBurnAmount.sub(burnAmount));
+        await ExilonInst.excludeFromPayingFees(exilonAdmin, { from: exilonAdmin });
+        await ExilonInst.transfer(BURN_ADDRESS, maxBurnAmount.sub(burnAmount).sub(TEN.mul(TEN)), { from: exilonAdmin });
+        await ExilonInst.includeToPayingFees(exilonAdmin, { from: exilonAdmin });
 
-            burnAmount = await ExilonInst.balanceOf(BURN_ADDRESS);
-            transferAmount = await ExilonInst.balanceOf(exilonAdmin);
-            feeAmount = transferAmount.mul(ONE).div(new BN("100"));
+        await checkTransfer(
+            exilonAdmin,
+            distributionAddress1,
+            await ExilonInst.balanceOf(exilonAdmin),
+            [EIGHT, ONE, ONE]
+        );
+    })
 
-            console.log("Burn amount = ", burnAmount.toString());
-            console.log("Fee amount = ", feeAmount.toString());
-            console.log("Max amount = ", maxBurnAmount.toString());
-        }
-    }) */
+    it("Stop burn at 60% from 60%", async () => {
+        await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
+        await makeFixedAddress(distributionAddress5);
+        await makeFixedAddress(distributionAddress6);
+        await makeFixedAddress(distributionAddress7);
+        await makeFixedAddress(distributionAddress8);
+
+        await ExilonInst.setWethLimitForLpFee(liquidityAmount, { from: exilonAdmin });
+        await checkRemoveLiquidity(
+            exilonAdmin,
+            await ExilonDexPairInst.balanceOf(exilonAdmin),
+            [EIGHT, ONE, ONE]
+        );
+
+        let from = distributionAddress1;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress2;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress3;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress4;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress5;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress6;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress7;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+        from = distributionAddress8;
+        await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+
+        let totalSupply = await ExilonInst.totalSupply();
+        let maxBurnAmount = totalSupply.mul(SIX).div(TEN);
+        let burnAmount = await ExilonInst.balanceOf(BURN_ADDRESS);
+
+        expect(await ExilonInst.balanceOf(exilonAdmin)).to.be.bignumber.above(maxBurnAmount.sub(burnAmount));
+        await ExilonInst.excludeFromPayingFees(exilonAdmin, { from: exilonAdmin });
+        await ExilonInst.transfer(BURN_ADDRESS, maxBurnAmount.sub(burnAmount), { from: exilonAdmin });
+        await ExilonInst.includeToPayingFees(exilonAdmin, { from: exilonAdmin });
+
+        await checkTransfer(
+            exilonAdmin,
+            distributionAddress1,
+            await ExilonInst.balanceOf(exilonAdmin),
+            [EIGHT, ONE, ONE]
+        );
+    })
 
     it("setWethReceiver()", async () => {
         await expectRevert(
@@ -1995,10 +2038,15 @@ describe('Exilon contract tests', () => {
         let burnAmount = amount.mul(feePercentages[1]).div(new BN("100"));
         let distributionAmount = amount.mul(feePercentages[2]).div(new BN("100"));
 
-        //isNear(balanceFromBefore.sub(balanceFromAfter), amount);
-        //isNear(balanceToAfter.sub(balanceToBefore), amount.sub(lpAmount).sub(burnAmount).sub(distributionAmount));
-        isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount);
-        isNear(burnAddressBalanceAfter.sub(burnAddressBalanceBefore), burnAmount);
+        let maxBurnAmount = TOTAL_SUPPLY.mul(SIX).div(TEN);
+        if (burnAddressBalanceBefore.add(burnAmount).gt(maxBurnAmount)) {
+            isNear(burnAddressBalanceAfter, maxBurnAmount);
+            let additionalToLp = burnAddressBalanceBefore.add(burnAmount).sub(maxBurnAmount);
+            isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount.add(additionalToLp));
+        } else {
+            isNear(burnAddressBalanceAfter.sub(burnAddressBalanceBefore), burnAmount);
+            isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount);
+        }
 
         for (let i = 0; i < fixedAddresses.length; ++i) {
             if (fixedAddresses[i] != from && fixedAddresses[i] != to && fixedAddresses[i] != BURN_ADDRESS) {

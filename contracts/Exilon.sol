@@ -598,6 +598,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                     burnAddressBalance = maxBalanceInBurnAddress;
                 }
                 _fixedBalances[address(0xdead)] = burnAddressBalance;
+            } else {
+                lpAndBurnAmounts[0] += lpAndBurnAmounts[1];
             }
         }
 
@@ -683,8 +685,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
                 poolInfo.tokenReserves += amountTokenToSell;
                 poolInfo.wethReserves -= amountOfWethToBuy;
-            } else {
-                // amountOfWethToBuy = 0;
             }
 
             uint256 amountOfTokens = PancakeLibrary.quote(
@@ -694,7 +694,9 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             );
             if (amountOfTokens <= _feeAmountInTokens) {
                 IERC20(poolInfo.weth).transfer(poolInfo.dexPair, contractBalance);
+                // solhint-disable-next-line reentrancy
                 _fixedBalances[poolInfo.dexPair] += amountOfTokens;
+                // solhint-disable-next-line reentrancy
                 feeAmountInTokens = _feeAmountInTokens - amountOfTokens;
 
                 IPancakePair(poolInfo.dexPair).mint(defaultLpMintAddress);
@@ -706,6 +708,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 );
 
                 IERC20(poolInfo.weth).transfer(poolInfo.dexPair, amountOfWeth);
+                // solhint-disable-next-line reentrancy
                 _fixedBalances[poolInfo.dexPair] += _feeAmountInTokens;
                 delete feeAmountInTokens;
 
@@ -895,6 +898,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     }
 
     function _safeTransferETH(address to, uint256 value) private {
+        // solhint-disable-next-line avoid-low-level-calls
         (bool success, ) = to.call{value: value}(new bytes(0));
         require(success, "Exilon: ETH transfer failed");
     }

@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract WethReceiver {
     address public immutable exilonToken;
 
+    // solhint-disable-next-line func-visibility
     constructor(address _exilonToken) {
         exilonToken = _exilonToken;
     }
