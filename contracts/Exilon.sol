@@ -692,28 +692,21 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 poolInfo.wethReserves,
                 poolInfo.tokenReserves
             );
-            if (amountOfTokens <= _feeAmountInTokens) {
-                IERC20(poolInfo.weth).transfer(poolInfo.dexPair, contractBalance);
-                // solhint-disable-next-line reentrancy
-                _fixedBalances[poolInfo.dexPair] += amountOfTokens;
-                // solhint-disable-next-line reentrancy
-                feeAmountInTokens = _feeAmountInTokens - amountOfTokens;
-
-                IPancakePair(poolInfo.dexPair).mint(defaultLpMintAddress);
-            } else {
-                uint256 amountOfWeth = PancakeLibrary.quote(
+            uint256 amountOfWeth = contractBalance;
+            if (amountOfTokens > _feeAmountInTokens) {
+                amountOfWeth = PancakeLibrary.quote(
                     _feeAmountInTokens,
                     poolInfo.tokenReserves,
                     poolInfo.wethReserves
                 );
-
-                IERC20(poolInfo.weth).transfer(poolInfo.dexPair, amountOfWeth);
-                // solhint-disable-next-line reentrancy
-                _fixedBalances[poolInfo.dexPair] += _feeAmountInTokens;
-                delete feeAmountInTokens;
-
-                IPancakePair(poolInfo.dexPair).mint(defaultLpMintAddress);
+                amountOfTokens = _feeAmountInTokens;
             }
+
+            _fixedBalances[poolInfo.dexPair] += amountOfTokens;
+            feeAmountInTokens = _feeAmountInTokens - amountOfTokens;
+
+            IERC20(poolInfo.weth).transfer(poolInfo.dexPair, amountOfWeth);
+            IPancakePair(poolInfo.dexPair).mint(defaultLpMintAddress);
 
             if (wethAmountReturn > 0) {
                 IERC20(poolInfo.weth).transfer(poolInfo.dexPair, wethAmountReturn);
