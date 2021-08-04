@@ -1,8 +1,9 @@
 const Migrations = artifacts.require("Migrations");
 
 module.exports = async function (deployer, network) {
-    if (network == "test" || network == "development")
+    if (network != "bsc" && network != "bscTestnet") {
         return;
+    }
 
     await deployer.deploy(
         Migrations

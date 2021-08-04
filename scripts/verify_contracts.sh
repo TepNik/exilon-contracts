@@ -1,3 +1,3 @@
 #!/bin/bash
 
-truffle run verify YDR AssetLib AssetLib2 AssetDeployCode AssetFactory Staking Oracle --network $1
+truffle run verify Distribution Exilon WethReceiver --network $1

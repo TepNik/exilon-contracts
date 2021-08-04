@@ -827,7 +827,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 return ([uint256(0), 0, 0], false);
             }
             if (_noRestrictionsOnSell.contains(from)) {
-                return ([uint256(8), 1, 1], false);
+                return ([uint256(8), 3, 1], false);
             }
 
             // [0, 200) - 25%
@@ -850,11 +850,11 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             uint256 blocknumber = block.number - _startBlock;
             if (blocknumber < 1650) {
                 if (blocknumber < 200) {
-                    return ([uint256(23), 1, 1], false);
+                    return ([uint256(23), 3, 1], false);
                 } else if (blocknumber < 350) {
-                    return ([uint256(22), 1, 1], false);
+                    return ([uint256(22), 3, 1], false);
                 } else {
-                    return ([21 - ((blocknumber - 350) / 100), 1, 1], false);
+                    return ([21 - ((blocknumber - 350) / 100), 3, 1], false);
                 }
             } else {
                 return ([uint256(0), 0, 0], true);
@@ -871,7 +871,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 return ([uint256(0), 0, 0], false);
             }
         }
-        return ([uint256(8), 1, 1], false);
+        return ([uint256(8), 3, 1], false);
     }
 
     function _getFeeAmounts(
@@ -883,12 +883,16 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         if (needToCheckFromBalance) {
             if (amount < balance / 2) {
                 amounts[0] = (amount * 8) / 100;
-                amounts[1] = amount / 100;
-                amounts[2] = amounts[1];
-            } else {
+                amounts[1] = (amount * 3) / 100;
+                amounts[2] = amount / 100;
+            } else if (amount < (balance * 3) / 4) {
                 amounts[0] = (amount * 13) / 100;
-                amounts[1] = amount / 100;
-                amounts[2] = amounts[1];
+                amounts[1] = (amount * 3) / 100;
+                amounts[2] = amount / 100;
+            } else {
+                amounts[0] = (amount * 18) / 100;
+                amounts[1] = (amount * 3) / 100;
+                amounts[2] = amount / 100;
             }
         } else {
             amounts[0] = (amount * percentages[0]) / 100;
