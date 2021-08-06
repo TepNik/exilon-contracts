@@ -592,12 +592,14 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             uint256 burnAddressBalance = _fixedBalances[address(0xdead)];
             uint256 maxBalanceInBurnAddress = (_TOTAL_EXTERNAL_SUPPLY * 6) / 10;
             if (burnAddressBalance < maxBalanceInBurnAddress) {
+                uint256 burnAddressBalanceBefore = burnAddressBalance;
                 burnAddressBalance += lpAndBurnAmounts[1];
                 if (burnAddressBalance > maxBalanceInBurnAddress) {
                     lpAndBurnAmounts[0] += burnAddressBalance - maxBalanceInBurnAddress;
                     burnAddressBalance = maxBalanceInBurnAddress;
                 }
                 _fixedBalances[address(0xdead)] = burnAddressBalance;
+                emit Transfer(from, address(0xdead), burnAddressBalance - burnAddressBalanceBefore);
             } else {
                 lpAndBurnAmounts[0] += lpAndBurnAmounts[1];
             }
@@ -606,6 +608,9 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         if (lpAndBurnAmounts[0] > 0 || isForce) {
             // Fee to lp pair
             uint256 _feeAmountInTokens = feeAmountInTokens;
+            if (lpAndBurnAmounts[0] > 0) {
+                emit Transfer(from, address(0), lpAndBurnAmounts[0]);
+            }
             _feeAmountInTokens += lpAndBurnAmounts[0];
 
             if (_feeAmountInTokens == 0) {
@@ -668,6 +673,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 }
 
                 _fixedBalances[poolInfo.dexPair] += amountTokenToSell;
+                emit Transfer(address(0), poolInfo.dexPair, amountTokenToSell);
                 {
                     uint256 amount0Out;
                     uint256 amount1Out;
@@ -704,6 +710,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
             _fixedBalances[poolInfo.dexPair] += amountOfTokens;
             feeAmountInTokens = _feeAmountInTokens - amountOfTokens;
+
+            emit Transfer(address(0), poolInfo.dexPair, amountOfTokens);
 
             IERC20(poolInfo.weth).transfer(poolInfo.dexPair, amountOfWeth);
             IPancakePair(poolInfo.dexPair).mint(defaultLpMintAddress);

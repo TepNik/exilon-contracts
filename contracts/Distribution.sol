@@ -43,18 +43,13 @@ contract Distribution is AccessControl, ReentrancyGuard {
         }
     }
 
-    function withdrawTokenLp(address[] memory users, uint256[] memory amounts)
-        external
-        onlyAdmin
-        nonReentrant
-    {
+    function withdrawTokenLp(address user, uint256 amount) external onlyAdmin nonReentrant {
         IERC20 _token = IERC20(tokenLp);
         require(address(_token) != address(0), "Distribution: init");
-
-        uint256 len = users.length;
-        require(len == amounts.length, "Distribution: input");
-        for (uint256 i = 0; i < len; ++i) {
-            require(_token.transfer(users[i], amounts[i]), "Distribution: Transfer");
+        if (amount == 0) {
+            amount = _token.balanceOf(address(this));
         }
+
+        require(_token.transfer(user, amount), "Distribution: Transfer");
     }
 }
