@@ -21,7 +21,7 @@ module.exports = async function (deployer, network) {
     let usdWethPair;
     if (network == "bsc") {
         routerAddress = DEX_ROUTER_MAINNET;
-        usdWethPair = BUSD_WBNB_PAIR_MAINNET;
+        usdWethPair = BUSD_WBNB_PAIR_MAINNE;
     } else {
         routerAddress = DEX_ROUTER_TESTNET;
         usdWethPair = BUSD_WBNB_PAIR_TESTNET;
