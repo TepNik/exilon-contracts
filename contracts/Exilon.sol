@@ -45,7 +45,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
     // private data
 
-    uint8 private constant _DECIMALS = 8;
+    uint8 private constant _DECIMALS = 6;
 
     string private constant _NAME = "Exilon";
     string private constant _SYMBOL = "XLNT";
@@ -387,7 +387,11 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         poolInfo.weth = _weth;
         {
             poolInfo = _checkBuyRestrictionsOnStart(from, poolInfo);
-            (fees, needToCheckFromBalance) = _getFeePercentages(from, to, poolInfo.dexPairExilonWeth);
+            (fees, needToCheckFromBalance) = _getFeePercentages(
+                from,
+                to,
+                poolInfo.dexPairExilonWeth
+            );
         }
 
         if (isFromFixed == true && isToFixed == true) {
@@ -409,7 +413,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 poolInfo
             );
         } else if (isFromFixed == false && isToFixed == false) {
-            _transferFromNotFixedToNotFixed([from, to], amount, fees, needToCheckFromBalance, poolInfo);
+            _transferFromNotFixedToNotFixed(
+                [from, to],
+                amount,
+                fees,
+                needToCheckFromBalance,
+                poolInfo
+            );
         }
     }
 
@@ -661,7 +671,12 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                         amount0Out = amountOfWethToBuy;
                     }
                     address _wethReceiver = wethReceiver;
-                    IPancakePair(poolInfo.dexPairExilonWeth).swap(amount0Out, amount1Out, _wethReceiver, "");
+                    IPancakePair(poolInfo.dexPairExilonWeth).swap(
+                        amount0Out,
+                        amount1Out,
+                        _wethReceiver,
+                        ""
+                    );
                     WethReceiver(_wethReceiver).getWeth(poolInfo.weth, amountOfWethToBuy);
                 }
                 _feeAmountInTokens -= amountTokenToSell;
@@ -771,7 +786,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     function _getDexPairInfo(PoolInfo memory poolInfo) private view returns (PoolInfo memory) {
         poolInfo.thisContract = address(this);
 
-        (uint256 reserve0, uint256 reserve1, ) = IPancakePair(poolInfo.dexPairExilonWeth).getReserves();
+        (uint256 reserve0, uint256 reserve1, ) = IPancakePair(poolInfo.dexPairExilonWeth)
+            .getReserves();
         (address token0, ) = PancakeLibrary.sortTokens(poolInfo.thisContract, poolInfo.weth);
         if (token0 == poolInfo.thisContract) {
             poolInfo.tokenReserves = reserve0;

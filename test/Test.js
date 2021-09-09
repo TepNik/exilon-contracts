@@ -15,7 +15,7 @@ require('dotenv').config();
 const {
 } = process.env;
 
-let testsWithOutput = false;
+let testsWithOutput = true;
 
 const MINUS_ONE = new BN(-1);
 const ZERO = new BN(0);
@@ -30,8 +30,9 @@ const EIGHT = new BN(8);
 const NINE = new BN(9);
 const TEN = new BN(10);
 const EIGHTEEN = new BN(18);
+const ONE_HUNDRED = new BN(100);
 
-const DECIMALS = EIGHT;
+const DECIMALS = SIX;
 const ONE_TOKEN = TEN.pow(DECIMALS);
 const ONE_ETH = TEN.pow(EIGHTEEN);
 
@@ -40,17 +41,19 @@ const BURN_ADDRESS = "0x000000000000000000000000000000000000dEaD";
 
 const NAME = "Exilon";
 const SYMBOL = "XLNT";
-const TOTAL_SUPPLY = (new BN("2500000000000")).mul(ONE_TOKEN);
+const TOTAL_SUPPLY = (new BN("7000000000000")).mul(ONE_TOKEN);
 
-const minEthLiquidity = ONE_ETH.mul(TEN).mul(TEN);
-const maxEthLiquidity = ONE_ETH.mul(TEN).mul(TEN).mul(TEN).mul(TEN);
-const minTokenLiquidity = ONE_ETH.mul(TEN).mul(TEN).mul(TEN);
-const maxTokenLiquidity = ONE_ETH.mul(TEN).mul(TEN).mul(TEN).mul(TEN).mul(TEN).mul(TEN);
+const AMOUNT_TO_LIQUIDITY = new BN("65");
+
+const usdTokenLiquidity = ONE_ETH.mul(TEN).mul(TEN);
+const usdWethLiquidity = ONE_ETH.mul(TEN).mul(TEN).mul(TEN).mul(TEN);
 
 const PancakeFactory = contract.fromArtifact('PancakeFactory');
 const PancakePair = contract.fromArtifact('PancakePair');
 const PancakeRouter = contract.fromArtifact('PancakeRouter');
 const WETH = contract.fromArtifact('WETH');
+
+const ERC20Test = contract.fromArtifact('ERC20Test');
 
 const Exilon = contract.fromArtifact('Exilon');
 const WethReceiver = contract.fromArtifact('wethReceiver');
@@ -58,6 +61,8 @@ const WethReceiver = contract.fromArtifact('wethReceiver');
 let PancakeFactoryInst;
 let PancakeRouterInst;
 let WETHInst;
+let UsdTokenInst;
+let UsdWethPairInst;
 let ExilonInst;
 let ExilonDexPairInst;
 let WethReceiverInst;
@@ -88,8 +93,25 @@ describe('Exilon contract tests', () => {
         PancakeFactoryInst = await PancakeFactory.new(feeToSetter);
         PancakeRouterInst = await PancakeRouter.new(PancakeFactoryInst.address, WETHInst.address);
 
+        UsdTokenInst = await ERC20Test.new();
+        await UsdTokenInst.mint(usdTokenLiquidity);
+        await UsdTokenInst.approve(PancakeRouterInst.address, usdTokenLiquidity);
+        await PancakeRouterInst.addLiquidityETH(
+            UsdTokenInst.address,
+            usdTokenLiquidity,
+            ZERO,
+            ZERO,
+            defaultLpMintAddress,
+            DEADLINE,
+            { value: usdWethLiquidity }
+        );
+        UsdWethPairInst = await PancakePair.at(
+            await PancakeFactoryInst.getPair(WETHInst.address, UsdTokenInst.address)
+        );
+
         ExilonInst = await Exilon.new(
             PancakeRouterInst.address,
+            UsdWethPairInst.address,
             [
                 distributionAddress1,
                 distributionAddress2,
@@ -119,6 +141,7 @@ describe('Exilon contract tests', () => {
 
         notFixedAddresses = [];
         notFixedAddresses.push(exilonAdmin);
+        notFixedAddresses.push(defaultLpMintAddress);
         notFixedAddresses.push(distributionAddress1);
         notFixedAddresses.push(distributionAddress2);
         notFixedAddresses.push(distributionAddress3);
@@ -133,7 +156,8 @@ describe('Exilon contract tests', () => {
 
     it("Deploy test", async () => {
         expect(await ExilonInst.dexRouter()).to.be.equals(PancakeRouterInst.address);
-        expect(await ExilonInst.dexPair()).to.be.equals(ExilonDexPairInst.address);
+        expect(await ExilonInst.dexPairExilonWeth()).to.be.equals(ExilonDexPairInst.address);
+        expect(await ExilonInst.dexPairUsdWeth()).to.be.equals(UsdWethPairInst.address);
 
         expect(await ExilonInst.wethReceiver()).to.be.equals(WethReceiverInst.address);
         expect(await ExilonInst.defaultLpMintAddress()).to.be.equals(defaultLpMintAddress);
@@ -148,20 +172,20 @@ describe('Exilon contract tests', () => {
 
         expect(await ExilonInst.hasRole(defaultAdminRole, exilonAdmin)).to.be.true;
 
-        let amountToLiqidity = TOTAL_SUPPLY.mul(EIGHT).div(TEN);
+        let amountToLiqidity = TOTAL_SUPPLY.mul(AMOUNT_TO_LIQUIDITY).div(ONE_HUNDRED);
         expect(await ExilonInst.balanceOf(ExilonInst.address)).to.be.bignumber.equals(amountToLiqidity);
 
         expect(await ExilonInst.balanceOf(exilonAdmin)).to.be.bignumber.equals(ZERO);
 
         let amountToDistribution = TOTAL_SUPPLY.sub(amountToLiqidity);
-        expect(await ExilonInst.balanceOf(distributionAddress1)).to.be.bignumber.equals(amountToDistribution.div(EIGHT));
-        expect(await ExilonInst.balanceOf(distributionAddress2)).to.be.bignumber.equals(amountToDistribution.div(EIGHT));
-        expect(await ExilonInst.balanceOf(distributionAddress3)).to.be.bignumber.equals(amountToDistribution.div(EIGHT));
-        expect(await ExilonInst.balanceOf(distributionAddress4)).to.be.bignumber.equals(amountToDistribution.div(EIGHT));
-        expect(await ExilonInst.balanceOf(distributionAddress5)).to.be.bignumber.equals(amountToDistribution.div(EIGHT));
-        expect(await ExilonInst.balanceOf(distributionAddress6)).to.be.bignumber.equals(amountToDistribution.div(EIGHT));
-        expect(await ExilonInst.balanceOf(distributionAddress7)).to.be.bignumber.equals(amountToDistribution.div(EIGHT));
-        expect(await ExilonInst.balanceOf(distributionAddress8)).to.be.bignumber.equals(amountToDistribution.div(EIGHT));
+        isNear(await ExilonInst.balanceOf(distributionAddress1), amountToDistribution.div(EIGHT));
+        isNear(await ExilonInst.balanceOf(distributionAddress2), amountToDistribution.div(EIGHT));
+        isNear(await ExilonInst.balanceOf(distributionAddress3), amountToDistribution.div(EIGHT));
+        isNear(await ExilonInst.balanceOf(distributionAddress4), amountToDistribution.div(EIGHT));
+        isNear(await ExilonInst.balanceOf(distributionAddress5), amountToDistribution.div(EIGHT));
+        isNear(await ExilonInst.balanceOf(distributionAddress6), amountToDistribution.div(EIGHT));
+        isNear(await ExilonInst.balanceOf(distributionAddress7), amountToDistribution.div(EIGHT));
+        isNear(await ExilonInst.balanceOf(distributionAddress8), amountToDistribution.div(EIGHT));
     })
 
     it("addLiquidity()", async () => {
@@ -198,12 +222,12 @@ describe('Exilon contract tests', () => {
             "Exilon: Only once"
         );
 
-        expect(await ExilonInst.balanceOf(ExilonDexPairInst.address)).to.be.bignumber.equals(TOTAL_SUPPLY.mul(EIGHT).div(TEN));
+        expect(await ExilonInst.balanceOf(ExilonDexPairInst.address)).to.be.bignumber.equals(TOTAL_SUPPLY.mul(AMOUNT_TO_LIQUIDITY).div(ONE_HUNDRED));
         expect(await WETHInst.balanceOf(ExilonDexPairInst.address)).to.be.bignumber.equals(ONE_ETH);
 
         let lpTotalSupply = await ExilonDexPairInst.totalSupply();
         let minimumLiqiudity = await ExilonDexPairInst.MINIMUM_LIQUIDITY();
-        expect(await ExilonDexPairInst.balanceOf(exilonAdmin)).to.be.bignumber.equals(lpTotalSupply.sub(minimumLiqiudity));
+        expect(await ExilonDexPairInst.balanceOf(defaultLpMintAddress)).to.be.bignumber.equals(lpTotalSupply.sub(minimumLiqiudity));
     })
 
     describe("transfer()", () => {
@@ -640,64 +664,6 @@ describe('Exilon contract tests', () => {
                 );
             })
         })
-
-        describe("No restrictions on sell accounts", () => {
-            it("Not fixed account", async () => {
-                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-                await makeFixedAddress(distributionAddress5);
-                await makeFixedAddress(distributionAddress6);
-                await makeFixedAddress(distributionAddress7);
-                await makeFixedAddress(distributionAddress8);
-
-                await ExilonInst.removeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin });
-
-                await checkBuy(
-                    distributionAddress1,
-                    ONE_ETH.div(TEN),
-                    [EIGHT, THREE, ONE]
-                );
-
-                await checkSell(
-                    distributionAddress1,
-                    (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
-                    [EIGHT, THREE, ONE]
-                );
-
-                await checkSell(
-                    distributionAddress1,
-                    await ExilonInst.balanceOf(distributionAddress1),
-                    [EIGHT, THREE, ONE]
-                );
-            })
-
-            it("Fixed account", async () => {
-                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
-                await makeFixedAddress(distributionAddress5);
-                await makeFixedAddress(distributionAddress6);
-                await makeFixedAddress(distributionAddress7);
-                await makeFixedAddress(distributionAddress8);
-
-                await ExilonInst.removeRestrictionsOnSell(distributionAddress5, { from: exilonAdmin });
-
-                await checkBuy(
-                    distributionAddress5,
-                    ONE_ETH.div(TEN),
-                    [EIGHT, THREE, ONE]
-                );
-
-                await checkSell(
-                    distributionAddress5,
-                    (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
-                    [EIGHT, THREE, ONE]
-                );
-
-                await checkSell(
-                    distributionAddress5,
-                    await ExilonInst.balanceOf(distributionAddress5),
-                    [EIGHT, THREE, ONE]
-                );
-            })
-        })
     })
 
     describe("Adding and removing liquidity", () => {
@@ -710,36 +676,32 @@ describe('Exilon contract tests', () => {
                 await makeFixedAddress(distributionAddress7);
                 await makeFixedAddress(distributionAddress8);
 
-                await ExilonInst.excludeFromPayingFees(exilonAdmin, { from: exilonAdmin });
+                const accountFrom = defaultLpMintAddress;
+                await ExilonInst.excludeFromPayingFees(accountFrom, { from: exilonAdmin });
 
                 await checkRemoveLiquidity(
-                    exilonAdmin,
-                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonDexPairInst.balanceOf(accountFrom),
                     [ZERO, ZERO, ZERO]
                 );
 
                 await checkAddLiquidity(
-                    exilonAdmin,
-                    await ExilonInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonInst.balanceOf(accountFrom),
                     [ZERO, ZERO, ZERO]
                 );
 
-                await time.advanceBlockTo(blocknumber.add(new BN("300")));
-                await time.advanceBlockTo(blocknumber.add(new BN("600")));
-                await time.advanceBlockTo(blocknumber.add(new BN("900")));
-                await time.advanceBlockTo(blocknumber.add(new BN("1200")));
-                await time.advanceBlockTo(blocknumber.add(new BN("1500")));
                 await time.advanceBlockTo(blocknumber.add(new BN("1650")));
 
                 await checkRemoveLiquidity(
-                    exilonAdmin,
-                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonDexPairInst.balanceOf(accountFrom),
                     [ZERO, ZERO, ZERO]
                 );
 
                 await checkAddLiquidity(
-                    exilonAdmin,
-                    await ExilonInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonInst.balanceOf(accountFrom),
                     [ZERO, ZERO, ZERO]
                 );
             })
@@ -752,37 +714,33 @@ describe('Exilon contract tests', () => {
                 await makeFixedAddress(distributionAddress7);
                 await makeFixedAddress(distributionAddress8);
 
-                await makeFixedAddress(exilonAdmin);
-                await ExilonInst.excludeFromPayingFees(exilonAdmin, { from: exilonAdmin });
+                const accountFrom = defaultLpMintAddress;
+                await makeFixedAddress(accountFrom);
+                await ExilonInst.excludeFromPayingFees(accountFrom, { from: exilonAdmin });
 
                 await checkRemoveLiquidity(
-                    exilonAdmin,
-                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonDexPairInst.balanceOf(accountFrom),
                     [ZERO, ZERO, ZERO]
                 );
 
                 await checkAddLiquidity(
-                    exilonAdmin,
-                    await ExilonInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonInst.balanceOf(accountFrom),
                     [ZERO, ZERO, ZERO]
                 );
 
-                await time.advanceBlockTo(blocknumber.add(new BN("300")));
-                await time.advanceBlockTo(blocknumber.add(new BN("600")));
-                await time.advanceBlockTo(blocknumber.add(new BN("900")));
-                await time.advanceBlockTo(blocknumber.add(new BN("1200")));
-                await time.advanceBlockTo(blocknumber.add(new BN("1500")));
                 await time.advanceBlockTo(blocknumber.add(new BN("1650")));
 
                 await checkRemoveLiquidity(
-                    exilonAdmin,
-                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonDexPairInst.balanceOf(accountFrom),
                     [ZERO, ZERO, ZERO]
                 );
 
                 await checkAddLiquidity(
-                    exilonAdmin,
-                    await ExilonInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonInst.balanceOf(accountFrom),
                     [ZERO, ZERO, ZERO]
                 );
             })
@@ -797,34 +755,30 @@ describe('Exilon contract tests', () => {
                 await makeFixedAddress(distributionAddress7);
                 await makeFixedAddress(distributionAddress8);
 
+                const accountFrom = defaultLpMintAddress;
                 await checkRemoveLiquidity(
-                    exilonAdmin,
-                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonDexPairInst.balanceOf(accountFrom),
                     [EIGHT, THREE, ONE]
                 );
 
                 await checkAddLiquidity(
-                    exilonAdmin,
-                    await ExilonInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonInst.balanceOf(accountFrom),
                     [new BN("23"), THREE, ONE]
                 );
 
-                await time.advanceBlockTo(blocknumber.add(new BN("300")));
-                await time.advanceBlockTo(blocknumber.add(new BN("600")));
-                await time.advanceBlockTo(blocknumber.add(new BN("900")));
-                await time.advanceBlockTo(blocknumber.add(new BN("1200")));
-                await time.advanceBlockTo(blocknumber.add(new BN("1500")));
                 await time.advanceBlockTo(blocknumber.add(new BN("1650")));
 
                 await checkRemoveLiquidity(
-                    exilonAdmin,
-                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonDexPairInst.balanceOf(accountFrom),
                     [EIGHT, THREE, ONE]
                 );
 
                 await checkAddLiquidity(
-                    exilonAdmin,
-                    await ExilonInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonInst.balanceOf(accountFrom),
                     [new BN("18"), THREE, ONE]
                 );
             })
@@ -837,36 +791,32 @@ describe('Exilon contract tests', () => {
                 await makeFixedAddress(distributionAddress7);
                 await makeFixedAddress(distributionAddress8);
 
-                await makeFixedAddress(exilonAdmin);
+                const accountFrom = defaultLpMintAddress;
+                await makeFixedAddress(accountFrom);
 
                 await checkRemoveLiquidity(
-                    exilonAdmin,
-                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonDexPairInst.balanceOf(accountFrom),
                     [EIGHT, THREE, ONE]
                 );
 
                 await checkAddLiquidity(
-                    exilonAdmin,
-                    await ExilonInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonInst.balanceOf(accountFrom),
                     [new BN("23"), THREE, ONE]
                 );
 
-                await time.advanceBlockTo(blocknumber.add(new BN("300")));
-                await time.advanceBlockTo(blocknumber.add(new BN("600")));
-                await time.advanceBlockTo(blocknumber.add(new BN("900")));
-                await time.advanceBlockTo(blocknumber.add(new BN("1200")));
-                await time.advanceBlockTo(blocknumber.add(new BN("1500")));
                 await time.advanceBlockTo(blocknumber.add(new BN("1650")));
 
                 await checkRemoveLiquidity(
-                    exilonAdmin,
-                    await ExilonDexPairInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonDexPairInst.balanceOf(accountFrom),
                     [EIGHT, THREE, ONE]
                 );
 
                 await checkAddLiquidity(
-                    exilonAdmin,
-                    await ExilonInst.balanceOf(exilonAdmin),
+                    accountFrom,
+                    await ExilonInst.balanceOf(accountFrom),
                     [new BN("18"), THREE, ONE]
                 );
             })
@@ -882,17 +832,17 @@ describe('Exilon contract tests', () => {
             await makeFixedAddress(distributionAddress7);
             await makeFixedAddress(distributionAddress8);
 
+            const accountFrom = defaultLpMintAddress;
+
             // removing lp
             let feeAmountBefore = await ExilonInst.feeAmountInTokens();
             await ExilonInst.setWethLimitForLpFee(ZERO, { from: exilonAdmin });
 
-            let adminBalance = await ExilonDexPairInst.balanceOf(exilonAdmin);
-            await ExilonDexPairInst.transfer(ExilonDexPairInst.address, adminBalance.div(TWO), { from: exilonAdmin });
-            await ExilonDexPairInst.burn(exilonAdmin, { from: exilonAdmin });
+            let lpBalance = await ExilonDexPairInst.balanceOf(accountFrom);
+            await ExilonDexPairInst.transfer(ExilonDexPairInst.address, lpBalance.div(TWO), { from: accountFrom });
+            await ExilonDexPairInst.burn(accountFrom, { from: accountFrom });
             let feeAmountAfter = await ExilonInst.feeAmountInTokens();
 
-            //console.log("Before =". feeAmountBefore.toString());
-            //console.log("After =". feeAmountAfter.toString());
             expect(feeAmountAfter).to.be.bignumber.above(feeAmountBefore);
             expect(feeAmountAfter).not.to.be.bignumber.equals(ZERO);
 
@@ -905,9 +855,9 @@ describe('Exilon contract tests', () => {
             await PancakeRouterInst.swapExactETHForTokensSupportingFeeOnTransferTokens(
                 ZERO,
                 path,
-                exilonAdmin,
+                accountFrom,
                 DEADLINE,
-                { from: exilonAdmin, value: ONE_ETH.mul(TEN) }
+                { from: accountFrom, value: ONE_ETH.mul(TEN) }
             );
 
             feeAmountAfter = await ExilonInst.feeAmountInTokens();
@@ -1015,12 +965,14 @@ describe('Exilon contract tests', () => {
 
             await ExilonInst.setWethLimitForLpFee(liquidityAmount, { from: exilonAdmin });
             await checkRemoveLiquidity(
-                exilonAdmin,
-                await ExilonDexPairInst.balanceOf(exilonAdmin),
+                defaultLpMintAddress,
+                await ExilonDexPairInst.balanceOf(defaultLpMintAddress),
                 [EIGHT, THREE, ONE]
             );
 
-            let from = distributionAddress1;
+            let from = defaultLpMintAddress;
+            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+            from = distributionAddress1;
             await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
             from = distributionAddress2;
             await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
@@ -1063,12 +1015,14 @@ describe('Exilon contract tests', () => {
 
             await ExilonInst.setWethLimitForLpFee(liquidityAmount, { from: exilonAdmin });
             await checkRemoveLiquidity(
-                exilonAdmin,
-                await ExilonDexPairInst.balanceOf(exilonAdmin),
+                defaultLpMintAddress,
+                await ExilonDexPairInst.balanceOf(defaultLpMintAddress),
                 [EIGHT, THREE, ONE]
             );
 
-            let from = distributionAddress1;
+            let from = defaultLpMintAddress;
+            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
+            from = distributionAddress1;
             await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
             from = distributionAddress2;
             await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), { from: from });
@@ -1171,7 +1125,7 @@ describe('Exilon contract tests', () => {
 
         let balanceAfter = await ExilonInst.balanceOf(distributionAddress1);
 
-        expect(balanceAfter).to.be.bignumber.equals(balanceBefore);
+        isNear(balanceAfter, balanceBefore);
 
         // test include in fees distribution
         balanceBefore = await ExilonInst.balanceOf(distributionAddress1);
@@ -1184,7 +1138,7 @@ describe('Exilon contract tests', () => {
 
         balanceAfter = await ExilonInst.balanceOf(distributionAddress1);
 
-        expect(balanceAfter).to.be.bignumber.equals(balanceBefore);
+        isNear(balanceAfter, balanceBefore);
     })
 
     it("excludeFromPayingFees() and includeToPayingFees()", async () => {
@@ -1222,43 +1176,6 @@ describe('Exilon contract tests', () => {
         expect(await ExilonInst.excludedFromPayingFeesLen()).to.be.bignumber.equals(ZERO);
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress1)).to.be.false;
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress2)).to.be.false;
-    })
-
-    it("removeRestrictionsOnSell() and imposeRestrictionsOnSell()", async () => {
-        await expectRevert(
-            ExilonInst.removeRestrictionsOnSell(distributionAddress2, { from: distributionAddress1 }),
-            "Exilon: Sender is not admin"
-        );
-
-        await expectRevert(
-            ExilonInst.imposeRestrictionsOnSell(distributionAddress2, { from: exilonAdmin }),
-            "Exilon: Already imposed"
-        );
-
-        expect(await ExilonInst.noRestrictionsOnSellLen()).to.be.bignumber.equals(ZERO);
-        expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress1)).to.be.false;
-        expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress2)).to.be.false;
-
-        await ExilonInst.removeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin });
-        await expectRevert(
-            ExilonInst.removeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin }),
-            "Exilon: Already removed"
-        );
-
-        expect(await ExilonInst.noRestrictionsOnSellLen()).to.be.bignumber.equals(ONE);
-        expect(await ExilonInst.getNoRestrictionsOnSellAt(ZERO)).to.be.bignumber.equals(distributionAddress1);
-        expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress1)).to.be.true;
-        expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress2)).to.be.false;
-
-        await ExilonInst.imposeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin });
-        await expectRevert(
-            ExilonInst.imposeRestrictionsOnSell(distributionAddress1, { from: exilonAdmin }),
-            "Exilon: Already imposed"
-        );
-
-        expect(await ExilonInst.noRestrictionsOnSellLen()).to.be.bignumber.equals(ZERO);
-        expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress1)).to.be.false;
-        expect(await ExilonInst.isNoRestrictionsOnSell(distributionAddress2)).to.be.false;
     })
 
 
