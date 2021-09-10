@@ -58,7 +58,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     mapping(address => uint256) private _fixedBalances;
 
     //solhint-disable-next-line var-name-mixedcase
-    uint256 private immutable _TOTAL_EXTERNAL_SUPPLY;
+    uint256 private constant _TOTAL_EXTERNAL_SUPPLY = 7 * 10**12 * 10**_DECIMALS;
+    uint256 private constant _INITIAL_AMOUNT_TO_LIQUIDITY = (_TOTAL_EXTERNAL_SUPPLY * 65) / 100;
 
     // _notFixedInternalTotalSupply * _notFixedExternalTotalSupply <= type(uint256).max
     uint256 private _notFixedExternalTotalSupply;
@@ -69,6 +70,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     address private immutable _weth;
 
     uint256 private _startBlock;
+    uint256 private _startTimestamp;
 
     // addresses that exluded from distribution of fees from transfers (have fixed balances)
     EnumerableSet.AddressSet private _excludedFromDistribution;
@@ -104,6 +106,16 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         dexPairExilonWeth = _dexPairExilonWeth;
         dexPairUsdWeth = _dexPairUsdWeth;
 
+        {
+            address token0 = IPancakePair(_dexPairUsdWeth).token0();
+            address token1 = IPancakePair(_dexPairUsdWeth).token1();
+            require(
+                (token0 == weth || token1 == weth) &&
+                    dexFactory.getPair(token0, token1) == _dexPairUsdWeth,
+                "Exilon: Wrong USD/WETH pair"
+            );
+        }
+
         dexRouter = _dexRouter;
 
         defaultLpMintAddress = _defaultLpMintAddress;
@@ -114,27 +126,22 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         _excludedFromDistribution.add(_dexPairExilonWeth);
         _excludedFromDistribution.add(address(0xdead));
 
-        uint256 totalAmount = 7 * 10**12 * 10**_DECIMALS;
-        _TOTAL_EXTERNAL_SUPPLY = totalAmount;
-        // 65% to liquidity
-        uint256 amountToLiquidity = (totalAmount * 65) / 100;
-
         // _fixedBalances[address(this)] only used for adding liquidity
         _excludedFromDistribution.add(address(this));
-        _fixedBalances[address(this)] = amountToLiquidity;
-        // add changes to transfer amountToLiquidity amount from NotFixed to Fixed account
+        _fixedBalances[address(this)] = _INITIAL_AMOUNT_TO_LIQUIDITY;
+        // add changes to transfer _INITIAL_AMOUNT_TO_LIQUIDITY amount from NotFixed to Fixed account
         // because LP pair is exluded from distribution
-        uint256 notFixedExternalTotalSupply = totalAmount;
+        uint256 notFixedExternalTotalSupply = _TOTAL_EXTERNAL_SUPPLY;
 
-        // div by totalAmount is needed because
+        // div by _TOTAL_EXTERNAL_SUPPLY is needed because
         // notFixedExternalTotalSupply * notFixedInternalTotalSupply
         // must fit into uint256
-        uint256 notFixedInternalTotalSupply = type(uint256).max / totalAmount;
+        uint256 notFixedInternalTotalSupply = type(uint256).max / _TOTAL_EXTERNAL_SUPPLY;
 
-        uint256 notFixedAmount = (amountToLiquidity * notFixedInternalTotalSupply) /
+        uint256 notFixedAmount = (_INITIAL_AMOUNT_TO_LIQUIDITY * notFixedInternalTotalSupply) /
             notFixedExternalTotalSupply;
 
-        notFixedExternalTotalSupply -= amountToLiquidity;
+        notFixedExternalTotalSupply -= _INITIAL_AMOUNT_TO_LIQUIDITY;
         _notFixedExternalTotalSupply = notFixedExternalTotalSupply;
 
         notFixedInternalTotalSupply -= notFixedAmount;
@@ -159,7 +166,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 notFixedInternalTotalSupply;
             emit Transfer(address(0), toDistribute[i], fixedAmountDistributed);
         }
-        emit Transfer(address(0), address(this), amountToLiquidity);
+        emit Transfer(address(0), address(this), _INITIAL_AMOUNT_TO_LIQUIDITY);
     }
 
     /* receive() external payable {
@@ -172,6 +179,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         require(_isLpAdded == 0, "Exilon: Only once");
         _isLpAdded = 1;
         _startBlock = block.number;
+        // solhint-disable-next-line not-rely-on-time
+        _startTimestamp = block.timestamp;
 
         uint256 amountToLiquidity = _fixedBalances[address(this)];
         delete _fixedBalances[address(this)];
