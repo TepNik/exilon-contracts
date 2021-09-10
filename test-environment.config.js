@@ -5,11 +5,11 @@ module.exports = {
     },
 
     contracts: {
-        type: 'truffle', // Contract abstraction to use: 'truffle' for @truffle/contract or 'web3' for web3-eth-contract
+        type: "truffle", // Contract abstraction to use: 'truffle' for @truffle/contract or 'web3' for web3-eth-contract
         defaultGas: 8e6, // Maximum gas for contract calls (when unspecified)
 
         defaultGasPrice: 20e9,
-        artifactsDir: 'build/contracts',
+        artifactsDir: "build/contracts",
     },
 
     node: {

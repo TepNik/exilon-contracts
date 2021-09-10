@@ -1,10 +1,7 @@
-require('dotenv').config();
-const {
-} = process.env;
+require("dotenv").config();
+const {} = process.env;
 
-const {
-    constants
-} = require('@openzeppelin/test-helpers');
+const { constants } = require("@openzeppelin/test-helpers");
 
 const WethReceiver = artifacts.require("WethReceiver");
 const Exilon = artifacts.require("Exilon");

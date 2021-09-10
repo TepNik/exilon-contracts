@@ -5,9 +5,7 @@ module.exports = async function (deployer, network) {
         return;
     }
 
-    await deployer.deploy(
-        Migrations
-    );
+    await deployer.deploy(Migrations);
     let MigrationsInst = await Migrations.deployed();
 
     console.log("Migrations =", MigrationsInst.address);

@@ -1,10 +1,10 @@
-require('dotenv').config();
+require("dotenv").config();
 const {
     EXILON_DEPLOY_GASLIMIT,
     DEX_ROUTER_MAINNET,
     DEX_ROUTER_TESTNET,
     BUSD_WBNB_PAIR_MAINNET,
-    BUSD_WBNB_PAIR_TESTNET
+    BUSD_WBNB_PAIR_TESTNET,
 } = process.env;
 
 const Exilon = artifacts.require("Exilon");
