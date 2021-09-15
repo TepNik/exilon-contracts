@@ -565,124 +565,112 @@ describe("Exilon contract tests", () => {
             it("Not fixed account", async () => {
                 let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
                 let blocknumber = new BN(tx.receipt.blockNumber);
+                let timestamp = new BN((await web3.eth.getBlock(blocknumber)).timestamp);
                 await makeFixedAddress(distributionAddress5);
                 await makeFixedAddress(distributionAddress6);
                 await makeFixedAddress(distributionAddress7);
                 await makeFixedAddress(distributionAddress8);
 
                 await checkBuy(distributionAddress1, ONE_ETH.div(TEN), [EIGHT, THREE, ONE]);
-
                 await checkSell(
                     distributionAddress1,
-                    (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
-                    [new BN("23"), THREE, ONE]
+                    (await ExilonInst.balanceOf(distributionAddress1)).mul(NINE).div(TEN).sub(ONE),
+                    [new BN("14"), THREE, ONE]
                 );
-                await time.advanceBlockTo(blocknumber.add(new BN("200")));
+
+                await checkBuy(distributionAddress1, ONE_ETH.div(TEN), [EIGHT, THREE, ONE]);
                 await checkSell(
                     distributionAddress1,
-                    (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
-                    [new BN("22"), THREE, ONE]
+                    (await ExilonInst.balanceOf(distributionAddress1)).mul(NINE).div(TEN).add(ONE),
+                    [new BN("16"), THREE, ONE]
                 );
-                await time.advanceBlockTo(blocknumber.add(new BN("350")));
 
-                let startBlock = blocknumber.add(new BN("350"));
-                let step = new BN("100");
-                for (let i = 0; i < 13; ++i) {
-                    let index = new BN(i);
-                    await checkSell(
-                        distributionAddress1,
-                        (await ExilonInst.balanceOf(distributionAddress1)).div(TEN),
-                        [new BN("21").sub(index), THREE, ONE]
-                    );
+                await time.increaseTo(timestamp.add(time.duration.minutes(30)));
 
-                    let newBlocknumber = startBlock.add(step.mul(index.add(ONE)));
-                    await time.advanceBlockTo(newBlocknumber);
-                }
-
+                await checkBuy(distributionAddress1, ONE_ETH.div(TEN), [EIGHT, THREE, ONE]);
                 await checkSell(
                     distributionAddress1,
-                    (await ExilonInst.balanceOf(distributionAddress1)).div(TWO).sub(ONE),
-                    [EIGHT, THREE, ONE]
+                    (await ExilonInst.balanceOf(distributionAddress1)).mul(NINE).div(TEN).sub(ONE),
+                    [new BN("11"), THREE, ONE]
                 );
+
+                await checkBuy(distributionAddress1, ONE_ETH.div(TEN), [EIGHT, THREE, ONE]);
                 await checkSell(
                     distributionAddress1,
-                    (await ExilonInst.balanceOf(distributionAddress1)).div(TWO),
+                    (await ExilonInst.balanceOf(distributionAddress1)).mul(NINE).div(TEN).add(ONE),
                     [new BN("13"), THREE, ONE]
                 );
+
+                await time.increaseTo(timestamp.add(time.duration.minutes(60)));
+
+                await checkBuy(distributionAddress1, ONE_ETH.div(TEN), [EIGHT, THREE, ONE]);
                 await checkSell(
                     distributionAddress1,
-                    (await ExilonInst.balanceOf(distributionAddress1))
-                        .mul(THREE)
-                        .div(FOUR)
-                        .sub(ONE),
-                    [new BN("13"), THREE, ONE]
+                    (await ExilonInst.balanceOf(distributionAddress1)).mul(NINE).div(TEN).sub(ONE),
+                    [new BN("8"), THREE, ONE]
                 );
+
+                await checkBuy(distributionAddress1, ONE_ETH.div(TEN), [EIGHT, THREE, ONE]);
                 await checkSell(
                     distributionAddress1,
-                    (await ExilonInst.balanceOf(distributionAddress1)).mul(THREE).div(FOUR),
-                    [new BN("18"), THREE, ONE]
+                    (await ExilonInst.balanceOf(distributionAddress1)).mul(NINE).div(TEN).add(ONE),
+                    [new BN("10"), THREE, ONE]
                 );
             });
 
             it("Fixed account", async () => {
                 let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
                 let blocknumber = new BN(tx.receipt.blockNumber);
+                let timestamp = new BN((await web3.eth.getBlock(blocknumber)).timestamp);
                 await makeFixedAddress(distributionAddress5);
                 await makeFixedAddress(distributionAddress6);
                 await makeFixedAddress(distributionAddress7);
                 await makeFixedAddress(distributionAddress8);
 
                 await checkBuy(distributionAddress5, ONE_ETH.div(TEN), [EIGHT, THREE, ONE]);
-
                 await checkSell(
                     distributionAddress5,
-                    (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
-                    [new BN("23"), THREE, ONE]
+                    (await ExilonInst.balanceOf(distributionAddress5)).mul(NINE).div(TEN).sub(ONE),
+                    [new BN("14"), THREE, ONE]
                 );
-                await time.advanceBlockTo(blocknumber.add(new BN("200")));
+
+                await checkBuy(distributionAddress5, ONE_ETH.div(TEN), [EIGHT, THREE, ONE]);
                 await checkSell(
                     distributionAddress5,
-                    (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
-                    [new BN("22"), THREE, ONE]
+                    (await ExilonInst.balanceOf(distributionAddress5)).mul(NINE).div(TEN).add(ONE),
+                    [new BN("16"), THREE, ONE]
                 );
-                await time.advanceBlockTo(blocknumber.add(new BN("350")));
 
-                let startBlock = blocknumber.add(new BN("350"));
-                let step = new BN("100");
-                for (let i = 0; i < 13; ++i) {
-                    let index = new BN(i);
-                    await checkSell(
-                        distributionAddress5,
-                        (await ExilonInst.balanceOf(distributionAddress5)).div(TEN),
-                        [new BN("21").sub(index), THREE, ONE]
-                    );
+                await time.increaseTo(timestamp.add(time.duration.minutes(30)));
 
-                    let newBlocknumber = startBlock.add(step.mul(index.add(ONE)));
-                    await time.advanceBlockTo(newBlocknumber);
-                }
-
+                await checkBuy(distributionAddress5, ONE_ETH.div(TEN), [EIGHT, THREE, ONE]);
                 await checkSell(
                     distributionAddress5,
-                    (await ExilonInst.balanceOf(distributionAddress5)).div(TWO).sub(ONE),
-                    [EIGHT, THREE, ONE]
+                    (await ExilonInst.balanceOf(distributionAddress5)).mul(NINE).div(TEN).sub(ONE),
+                    [new BN("11"), THREE, ONE]
                 );
+
+                await checkBuy(distributionAddress5, ONE_ETH.div(TEN), [EIGHT, THREE, ONE]);
                 await checkSell(
                     distributionAddress5,
-                    (await ExilonInst.balanceOf(distributionAddress5)).div(TWO),
+                    (await ExilonInst.balanceOf(distributionAddress5)).mul(NINE).div(TEN).add(ONE),
                     [new BN("13"), THREE, ONE]
                 );
+
+                await time.increaseTo(timestamp.add(time.duration.minutes(60)));
+
+                await checkBuy(distributionAddress5, ONE_ETH.div(TEN), [EIGHT, THREE, ONE]);
                 await checkSell(
                     distributionAddress5,
-                    (await ExilonInst.balanceOf(distributionAddress5))
-                        .mul(THREE)
-                        .div(FOUR)
-                        .sub(ONE),
-                    [new BN("13"), THREE, ONE]
+                    (await ExilonInst.balanceOf(distributionAddress5)).mul(NINE).div(TEN).sub(ONE),
+                    [new BN("8"), THREE, ONE]
                 );
+
+                await checkBuy(distributionAddress5, ONE_ETH.div(TEN), [EIGHT, THREE, ONE]);
                 await checkSell(
                     distributionAddress5,
-                    (await ExilonInst.balanceOf(distributionAddress5)).mul(THREE).div(FOUR),
-                    [new BN("18"), THREE, ONE]
+                    (await ExilonInst.balanceOf(distributionAddress5)).mul(NINE).div(TEN).add(ONE),
+                    [new BN("10"), THREE, ONE]
                 );
             });
         });
@@ -781,6 +769,7 @@ describe("Exilon contract tests", () => {
                     value: liquidityAmount,
                 });
                 let blocknumber = new BN(tx.receipt.blockNumber);
+                let timestamp = new BN((await web3.eth.getBlock(blocknumber)).timestamp);
                 await makeFixedAddress(distributionAddress5);
                 await makeFixedAddress(distributionAddress6);
                 await makeFixedAddress(distributionAddress7);
@@ -794,12 +783,12 @@ describe("Exilon contract tests", () => {
                 );
 
                 await checkAddLiquidity(accountFrom, await ExilonInst.balanceOf(accountFrom), [
-                    new BN("23"),
+                    new BN("16"),
                     THREE,
                     ONE,
                 ]);
 
-                await time.advanceBlockTo(blocknumber.add(new BN("1650")));
+                await time.increaseTo(timestamp.add(time.duration.minutes(60)));
 
                 await checkRemoveLiquidity(
                     accountFrom,
@@ -808,7 +797,7 @@ describe("Exilon contract tests", () => {
                 );
 
                 await checkAddLiquidity(accountFrom, await ExilonInst.balanceOf(accountFrom), [
-                    new BN("18"),
+                    new BN("10"),
                     THREE,
                     ONE,
                 ]);
@@ -820,6 +809,7 @@ describe("Exilon contract tests", () => {
                     value: liquidityAmount,
                 });
                 let blocknumber = new BN(tx.receipt.blockNumber);
+                let timestamp = new BN((await web3.eth.getBlock(blocknumber)).timestamp);
                 await makeFixedAddress(distributionAddress5);
                 await makeFixedAddress(distributionAddress6);
                 await makeFixedAddress(distributionAddress7);
@@ -835,12 +825,12 @@ describe("Exilon contract tests", () => {
                 );
 
                 await checkAddLiquidity(accountFrom, await ExilonInst.balanceOf(accountFrom), [
-                    new BN("23"),
+                    new BN("16"),
                     THREE,
                     ONE,
                 ]);
 
-                await time.advanceBlockTo(blocknumber.add(new BN("1650")));
+                await time.increaseTo(timestamp.add(time.duration.minutes(60)));
 
                 await checkRemoveLiquidity(
                     accountFrom,
@@ -849,7 +839,7 @@ describe("Exilon contract tests", () => {
                 );
 
                 await checkAddLiquidity(accountFrom, await ExilonInst.balanceOf(accountFrom), [
-                    new BN("18"),
+                    new BN("10"),
                     THREE,
                     ONE,
                 ]);
@@ -909,12 +899,14 @@ describe("Exilon contract tests", () => {
                     value: liquidityAmount,
                 });
                 let blocknumber = new BN(tx.receipt.blockNumber);
+                let timestamp = new BN((await web3.eth.getBlock(blocknumber)).timestamp);
                 await makeFixedAddress(distributionAddress5);
                 await makeFixedAddress(distributionAddress6);
                 await makeFixedAddress(distributionAddress7);
                 await makeFixedAddress(distributionAddress8);
 
-                await time.advanceBlockTo(blocknumber.add(new BN("1650")));
+                await time.advanceBlockTo(blocknumber.add(new BN("780")));
+                await time.increaseTo(timestamp.add(time.duration.minutes(60)));
 
                 await checkAddLiquidityWithLpDistribution(
                     distributionAddress1,
@@ -955,12 +947,14 @@ describe("Exilon contract tests", () => {
                     value: liquidityAmount,
                 });
                 let blocknumber = new BN(tx.receipt.blockNumber);
+                let timestamp = new BN((await web3.eth.getBlock(blocknumber)).timestamp);
                 await makeFixedAddress(distributionAddress5);
                 await makeFixedAddress(distributionAddress6);
                 await makeFixedAddress(distributionAddress7);
                 await makeFixedAddress(distributionAddress8);
 
-                await time.advanceBlockTo(blocknumber.add(new BN("1650")));
+                await time.advanceBlockTo(blocknumber.add(new BN("780")));
+                await time.increaseTo(timestamp.add(time.duration.minutes(60)));
 
                 await checkAddLiquidityWithLpDistribution(
                     distributionAddress5,

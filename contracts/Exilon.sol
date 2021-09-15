@@ -323,7 +323,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     }
 
     function setWethReceiver(address value) external onlyAdmin {
-        require(wethReceiver == address(0), "Exilon: Only once");
+        require(wethReceiver == address(0) && value != address(0), "Exilon: Only once");
         wethReceiver = value;
     }
 
@@ -760,16 +760,17 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
         uint256 blocknumber = block.number - _startBlock;
 
-        // [0; 60) - 0.1 BNB
-        // [60; 120) - 0.2 BNB
-        // [120; 180) - 0.3 BNB
-        // [180; 240) - 0.4 BNB
-        // [240; 300) - 0.5 BNB
-        // [300; 360) - 0.6 BNB
-        // [360; 420) - 0.7 BNB
-        // [420; 480) - 0.8 BNB
-        // [480; 540) - 0.9 BNB
-        // [540; 600) - 1 BNB
+        // [0; 120) - 0.1 BNB
+        // [120; 240) - 0.2 BNB
+        // [240; 360) - 0.3 BNB
+        // [360; 420) - 0.4 BNB
+        // [420; 480) - 0.5 BNB
+        // [480; 540) - 0.6 BNB
+        // [540; 600) - 0.7 BNB
+        // [600; 660) - 0.8 BNB
+        // [660; 720) - 0.9 BNB
+        // [720; 780) - 1 BNB
+        // [780; +inf) - unlimited
 
         if (blocknumber < 780) {
             if (blocknumber < 120) {
@@ -853,35 +854,18 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 return ([uint256(0), 0, 0], false);
             }
 
-            // [0, 200) - 25%
-            // [200, 350) - 24%
-            // [350, 450) - 23%
-            // [450, 550) - 22%
-            // [550, 650) - 21%
-            // [650, 750) - 20%
-            // [750, 850) - 19%
-            // [850, 950) - 18%
-            // [950, 1050) - 17%
-            // [1050, 1150) - 16%
-            // [1150, 1250) - 15%
-            // [1250, 1350) - 14%
-            // [1350, 1450) - 13%
-            // [1450, 1550) - 12%
-            // [1550, 1650) - 11%
-            // [1650, +inf) - 10% + checking of balance (if selling >=50% of balance)
+            // [0, 30 min) - 18%
+            // [30 min, 60 min) - 15%
+            // [60 min, +inf min) - 12%
+            // + checking sell amount comparing with balance
 
-            uint256 blocknumber = block.number - _startBlock;
-            if (blocknumber < 1650) {
-                if (blocknumber < 200) {
-                    return ([uint256(23), 3, 1], false);
-                } else if (blocknumber < 350) {
-                    return ([uint256(22), 3, 1], false);
-                } else {
-                    return ([21 - ((blocknumber - 350) / 100), 3, 1], false);
-                }
-            } else {
-                return ([uint256(0), 0, 0], true);
+            uint256 timeFromStart = block.timestamp - _startTimestamp;
+            if (timeFromStart < 30 minutes) {
+                return ([uint256(14), 3, 1], true);
+            } else if (timeFromStart < 60 minutes) {
+                return ([uint256(11), 3, 1], true);
             }
+            return ([uint256(8), 3, 1], true);
         } else if (from == _dexPair) {
             // if buying
             if (_excludedFromPayingFees.contains(to)) {
@@ -890,7 +874,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             }
         } else {
             // if transfer
-            if (_excludedFromPayingFees.contains(from)) {
+            if (_excludedFromPayingFees.contains(from) || _excludedFromPayingFees.contains(to)) {
                 return ([uint256(0), 0, 0], false);
             }
         }
@@ -903,24 +887,20 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         uint256 balance,
         bool needToCheckFromBalance
     ) private pure returns (uint256[3] memory amounts) {
-        if (needToCheckFromBalance) {
-            if (amount < balance / 2) {
-                amounts[0] = (amount * 8) / 100;
-                amounts[1] = (amount * 3) / 100;
-                amounts[2] = amount / 100;
-            } else if (amount < (balance * 3) / 4) {
-                amounts[0] = (amount * 13) / 100;
-                amounts[1] = (amount * 3) / 100;
-                amounts[2] = amount / 100;
-            } else {
-                amounts[0] = (amount * 18) / 100;
-                amounts[1] = (amount * 3) / 100;
-                amounts[2] = amount / 100;
-            }
+        // percentages[0] - LP percentages
+        // percentages[1] - burn percentages
+        // percentages[2] - distribution percentages
+
+        // amounts[0] - LP amount
+        // amounts[1] - burn amount
+        // amounts[2] - distribution amount
+
+        if (needToCheckFromBalance && amount >= (balance * 9) / 10) {
+            amounts[0] = (amount * (percentages[0] + 2)) / 100;
         } else {
             amounts[0] = (amount * percentages[0]) / 100;
-            amounts[1] = (amount * percentages[1]) / 100;
-            amounts[2] = (amount * percentages[2]) / 100;
         }
+        amounts[1] = (amount * percentages[1]) / 100;
+        amounts[2] = (amount * percentages[2]) / 100;
     }
 }
