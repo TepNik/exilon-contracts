@@ -44,6 +44,20 @@ const TOTAL_SUPPLY = new BN("7000000000000").mul(ONE_TOKEN);
 
 const AMOUNT_TO_LIQUIDITY = new BN("65");
 
+const STEP_AMOUNT = ONE_ETH.div(TEN);
+const STEP_DELTA_BLOCK = [
+    new BN(120),
+    new BN(120),
+    new BN(120),
+    new BN(60),
+    new BN(60),
+    new BN(60),
+    new BN(60),
+    new BN(60),
+    new BN(60),
+    new BN(60),
+];
+
 const usdTokenLiquidity = ONE_ETH.mul(TEN).mul(TEN);
 const usdWethLiquidity = ONE_ETH.mul(TEN).mul(TEN).mul(TEN).mul(TEN);
 
@@ -465,11 +479,11 @@ describe("Exilon contract tests", () => {
         it("Check buy restrictions on start", async () => {
             let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
             let blocknumber = new BN(tx.receipt.blockNumber);
-            let step = new BN("60");
-            for (let i = 0; i < 10; ++i) {
-                let index = new BN(i);
-                let newBlocknumber = blocknumber.add(step.mul(index));
-                await time.advanceBlockTo(newBlocknumber);
+
+            let blockNow = blocknumber;
+            for (let i = 0; i < STEP_DELTA_BLOCK.length; ++i) {
+                let sellAmount = restrictionsOnStart(blockNow.sub(blocknumber));
+                await time.advanceBlockTo(blockNow);
 
                 await expectRevert(
                     PancakeRouterInst.swapExactETHForTokens(
@@ -477,7 +491,7 @@ describe("Exilon contract tests", () => {
                         [WETHInst.address, ExilonInst.address],
                         exilonAdmin,
                         DEADLINE,
-                        { value: ONE_ETH.div(TEN).mul(index.add(ONE)).add(ONE) }
+                        { value: sellAmount.add(ONE) }
                     ),
                     "Pancake: TRANSFER_FAILED"
                 );
@@ -486,11 +500,13 @@ describe("Exilon contract tests", () => {
                     [WETHInst.address, ExilonInst.address],
                     exilonAdmin,
                     DEADLINE,
-                    { value: ONE_ETH.div(TEN).mul(index.add(ONE)) }
+                    { value: sellAmount }
                 );
+
+                blockNow = blockNow.add(STEP_DELTA_BLOCK[i]);
             }
 
-            await time.advanceBlockTo(blocknumber.add(step.mul(new BN(11))));
+            await time.advanceBlockTo(blockNow);
 
             await PancakeRouterInst.swapExactETHForTokens(
                 ZERO,
@@ -2125,6 +2141,17 @@ describe("Exilon contract tests", () => {
         }
     }
 });
+
+function restrictionsOnStart(blockDelta) {
+    let blockNow = ZERO;
+    for (let i = 0; i < STEP_DELTA_BLOCK.length; ++i) {
+        if (blockDelta.gte(blockNow) && blockDelta.lt(blockNow.add(STEP_DELTA_BLOCK[i]))) {
+            return STEP_AMOUNT.mul(new BN(i + 1));
+        }
+        blockNow = blockNow.add(STEP_DELTA_BLOCK[i]);
+    }
+    return;
+}
 
 function isNear(x, y) {
     expect(x.sub(y).abs()).to.be.bignumber.below(TEN);

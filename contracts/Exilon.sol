@@ -747,26 +747,26 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         // [480; 540) - 0.9 BNB
         // [540; 600) - 1 BNB
 
-        if (blocknumber < 600) {
-            if (blocknumber < 60) {
+        if (blocknumber < 780) {
+            if (blocknumber < 120) {
                 return _checkBuyAmountCeil(poolInfo, 1 ether / 10);
-            } else if (blocknumber < 120) {
-                return _checkBuyAmountCeil(poolInfo, 2 ether / 10);
-            } else if (blocknumber < 180) {
-                return _checkBuyAmountCeil(poolInfo, 3 ether / 10);
             } else if (blocknumber < 240) {
-                return _checkBuyAmountCeil(poolInfo, 4 ether / 10);
-            } else if (blocknumber < 300) {
-                return _checkBuyAmountCeil(poolInfo, 5 ether / 10);
+                return _checkBuyAmountCeil(poolInfo, 2 ether / 10);
             } else if (blocknumber < 360) {
-                return _checkBuyAmountCeil(poolInfo, 6 ether / 10);
+                return _checkBuyAmountCeil(poolInfo, 3 ether / 10);
             } else if (blocknumber < 420) {
-                return _checkBuyAmountCeil(poolInfo, 7 ether / 10);
+                return _checkBuyAmountCeil(poolInfo, 4 ether / 10);
             } else if (blocknumber < 480) {
-                return _checkBuyAmountCeil(poolInfo, 8 ether / 10);
+                return _checkBuyAmountCeil(poolInfo, 5 ether / 10);
             } else if (blocknumber < 540) {
-                return _checkBuyAmountCeil(poolInfo, 9 ether / 10);
+                return _checkBuyAmountCeil(poolInfo, 6 ether / 10);
             } else if (blocknumber < 600) {
+                return _checkBuyAmountCeil(poolInfo, 7 ether / 10);
+            } else if (blocknumber < 660) {
+                return _checkBuyAmountCeil(poolInfo, 8 ether / 10);
+            } else if (blocknumber < 720) {
+                return _checkBuyAmountCeil(poolInfo, 9 ether / 10);
+            } else {
                 return _checkBuyAmountCeil(poolInfo, 1 ether);
             }
         }
