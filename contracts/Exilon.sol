@@ -25,8 +25,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         uint256 wethBalance;
         address dexPairExilonWeth;
         address weth;
-        address thisContract;
-        bool exilonIsToken0;
+        bool isToken0;
     }
 
     /* STATE VARIABLES */
@@ -57,7 +56,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     // "external" balances for fixed addresses
     mapping(address => uint256) private _fixedBalances;
 
-    //solhint-disable-next-line var-name-mixedcase
     uint256 private constant _TOTAL_EXTERNAL_SUPPLY = 7 * 10**12 * 10**_DECIMALS;
     uint256 private constant _INITIAL_AMOUNT_TO_LIQUIDITY = (_TOTAL_EXTERNAL_SUPPLY * 65) / 100;
 
@@ -92,21 +90,23 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
     /* FUNCTIONS */
 
-    // solhint-disable-next-line func-visibility
     constructor(
         IPancakeRouter02 _dexRouter,
         address _dexPairUsdWeth,
         address[] memory toDistribute,
         address _defaultLpMintAddress
     ) {
+        dexRouter = _dexRouter;
         IPancakeFactory dexFactory = IPancakeFactory(_dexRouter.factory());
+
         address weth = _dexRouter.WETH();
         _weth = weth;
+
         address _dexPairExilonWeth = dexFactory.createPair(address(this), weth);
         dexPairExilonWeth = _dexPairExilonWeth;
-        dexPairUsdWeth = _dexPairUsdWeth;
 
         {
+            dexPairUsdWeth = _dexPairUsdWeth;
             address token0 = IPancakePair(_dexPairUsdWeth).token0();
             address token1 = IPancakePair(_dexPairUsdWeth).token1();
             require(
@@ -115,8 +115,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 "Exilon: Wrong USD/WETH pair"
             );
         }
-
-        dexRouter = _dexRouter;
 
         defaultLpMintAddress = _defaultLpMintAddress;
 
@@ -148,7 +146,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
 
         // notFixedInternalTotalSupply amount will be distributed between toDistribute addresses
-        // it is addresses for team and private sale
+        // it is addresses for team
         require(toDistribute.length > 0, "Exilon: Length error");
         uint256 restAmount = notFixedInternalTotalSupply;
         for (uint256 i = 0; i < toDistribute.length; ++i) {
@@ -178,8 +176,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     function addLiquidity() external payable onlyAdmin {
         require(_isLpAdded == 0, "Exilon: Only once");
         _isLpAdded = 1;
+
         _startBlock = block.number;
-        // solhint-disable-next-line not-rely-on-time
         _startTimestamp = block.timestamp;
 
         uint256 amountToLiquidity = _fixedBalances[address(this)];
@@ -605,7 +603,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         if (lpAndBurnAmounts[0] > 0 || isForce) {
             // Fee to lp pair
             uint256 _feeAmountInTokens = feeAmountInTokens;
-            if (lpAndBurnAmounts[0] > 0) {
+            if (from != address(0) && lpAndBurnAmounts[0] > 0) {
                 emit Transfer(from, address(0), lpAndBurnAmounts[0]);
             }
             _feeAmountInTokens += lpAndBurnAmounts[0];
@@ -627,7 +625,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 poolInfo = _getDexPairInfo(poolInfo);
             }
 
-            uint256 contractBalance = IERC20(poolInfo.weth).balanceOf(poolInfo.thisContract);
+            uint256 contractBalance = IERC20(poolInfo.weth).balanceOf(address(this));
             uint256 wethFeesPrice = PancakeLibrary.getAmountOut(
                 _feeAmountInTokens,
                 poolInfo.tokenReserves,
@@ -649,7 +647,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 // if in pool already weth of user
                 // it can happen if user is adding lp
                 wethAmountReturn = poolInfo.wethBalance - poolInfo.wethReserves;
-                IPancakePair(poolInfo.dexPairExilonWeth).skim(poolInfo.thisContract);
+                IPancakePair(poolInfo.dexPairExilonWeth).skim(address(this));
             }
 
             uint256 amountOfWethToBuy = (wethFeesPrice + contractBalance) / 2;
@@ -674,7 +672,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 {
                     uint256 amount0Out;
                     uint256 amount1Out;
-                    if (poolInfo.exilonIsToken0) {
+                    if (poolInfo.isToken0) {
                         amount1Out = amountOfWethToBuy;
                     } else {
                         amount0Out = amountOfWethToBuy;
@@ -793,19 +791,17 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     }
 
     function _getDexPairInfo(PoolInfo memory poolInfo) private view returns (PoolInfo memory) {
-        poolInfo.thisContract = address(this);
-
         (uint256 reserve0, uint256 reserve1, ) = IPancakePair(poolInfo.dexPairExilonWeth)
             .getReserves();
-        (address token0, ) = PancakeLibrary.sortTokens(poolInfo.thisContract, poolInfo.weth);
-        if (token0 == poolInfo.thisContract) {
+        (address token0, ) = PancakeLibrary.sortTokens(address(this), poolInfo.weth);
+        if (token0 == address(this)) {
             poolInfo.tokenReserves = reserve0;
             poolInfo.wethReserves = reserve1;
-            poolInfo.exilonIsToken0 = true;
+            poolInfo.isToken0 = true;
         } else {
             poolInfo.wethReserves = reserve0;
             poolInfo.tokenReserves = reserve1;
-            poolInfo.exilonIsToken0 = false;
+            poolInfo.isToken0 = false;
         }
         poolInfo.wethBalance = IERC20(poolInfo.weth).balanceOf(poolInfo.dexPairExilonWeth);
 

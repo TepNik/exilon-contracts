@@ -882,7 +882,7 @@ describe("Exilon contract tests", () => {
             expect(feeAmountAfter).to.be.bignumber.above(feeAmountBefore);
             expect(feeAmountAfter).not.to.be.bignumber.equals(ZERO);
 
-            await time.advanceBlockTo(blocknumber.add(new BN("600")));
+            await time.advanceBlockTo(blocknumber.add(new BN("780")));
 
             // selling
             feeAmountBefore = await ExilonInst.feeAmountInTokens();
@@ -1143,6 +1143,34 @@ describe("Exilon contract tests", () => {
                 [EIGHT, THREE, ONE]
             );
         });
+    });
+
+    it("forceLpFeesDistribute()", async () => {
+        let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN) });
+        let blocknumber = new BN(tx.receipt.blockNumber);
+
+        await expectRevert(
+            ExilonInst.forceLpFeesDistribute({ from: distributionAddress1 }),
+            "Exilon: Sender is not admin"
+        );
+
+        await time.advanceBlockTo(blocknumber.add(new BN("780")));
+
+        let lpTotalSupplyBefore = await ExilonDexPairInst.totalSupply();
+        await PancakeRouterInst.swapExactETHForTokens(
+            ZERO,
+            [WETHInst.address, ExilonInst.address],
+            exilonAdmin,
+            DEADLINE,
+            { value: ONE_ETH.mul(TEN) }
+        );
+        let lpTotalSupplyAfter = await ExilonDexPairInst.totalSupply();
+        expect(lpTotalSupplyAfter.sub(lpTotalSupplyBefore)).to.be.bignumber.equals(ZERO);
+
+        await ExilonInst.forceLpFeesDistribute({ from: exilonAdmin });
+
+        lpTotalSupplyAfter = await ExilonDexPairInst.totalSupply();
+        expect(lpTotalSupplyAfter.sub(lpTotalSupplyBefore)).not.to.be.bignumber.equals(ZERO);
     });
 
     it("setWethReceiver()", async () => {

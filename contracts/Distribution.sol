@@ -15,7 +15,6 @@ contract Distribution is AccessControl, ReentrancyGuard {
         _;
     }
 
-    // solhint-disable-next-line func-visibility
     constructor() {
         _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
     }
