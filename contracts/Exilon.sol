@@ -88,6 +88,15 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
     /* EVENTS */
 
+    event ExcludedFromFeesDistribution(address indexed user);
+    event IncludedToFeesDistribution(address indexed user);
+    event ExcludedFromPayingFees(address indexed user);
+    event IncludedToPayingFees(address indexed user);
+    event ChangeWethLimitForLpFee(uint256 oldValue, uint256 newValue);
+    event ChangeDefaultLpMintAddress(address indexed oldValue, address indexed newValue);
+    event ForceLpFeesDistribution();
+    event LiquidityAdded(uint256 amount);
+
     /* FUNCTIONS */
 
     constructor(
@@ -194,6 +203,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         IPancakePair(_dexPairExilonWeth).mint(defaultLpMintAddress);
 
         emit Transfer(address(this), _dexPairExilonWeth, amountToLiquidity);
+        emit LiquidityAdded(msg.value);
     }
 
     function approve(address spender, uint256 amount) external virtual override returns (bool) {
@@ -231,6 +241,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         poolInfo.dexPairExilonWeth = dexPairExilonWeth;
         poolInfo.weth = _weth;
         _distributeFeesToLpAndBurn(address(0), [uint256(0), 0], true, poolInfo);
+
+        emit ForceLpFeesDistribution();
     }
 
     function excludeFromFeesDistribution(address user) external onlyWhenLiquidityAdded onlyAdmin {
@@ -253,6 +265,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             notFixedInternalTotalSupply -= notFixedUserBalance;
             _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
         }
+
+        emit ExcludedFromFeesDistribution(user);
     }
 
     function includeToFeesDistribution(address user) external onlyWhenLiquidityAdded onlyAdmin {
@@ -276,24 +290,36 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             notFixedInternalTotalSupply += notFixedUserBalance;
             _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
         }
+
+        emit IncludedToFeesDistribution(user);
     }
 
     function excludeFromPayingFees(address user) external onlyAdmin {
         require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
         require(_excludedFromPayingFees.add(user) == true, "Exilon: Already excluded");
+
+        emit ExcludedFromPayingFees(user);
     }
 
     function includeToPayingFees(address user) external onlyAdmin {
         require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
         require(_excludedFromPayingFees.remove(user) == true, "Exilon: Already included");
+
+        emit IncludedToPayingFees(user);
     }
 
-    function setWethLimitForLpFee(uint256 value) external onlyAdmin {
-        wethLimitForLpFee = value;
+    function setWethLimitForLpFee(uint256 newValue) external onlyAdmin {
+        uint256 oldValue = wethLimitForLpFee;
+        wethLimitForLpFee = newValue;
+
+        emit ChangeWethLimitForLpFee(oldValue, newValue);
     }
 
-    function setDefaultLpMintAddress(address value) external onlyAdmin {
-        defaultLpMintAddress = value;
+    function setDefaultLpMintAddress(address newValue) external onlyAdmin {
+        address oldValue = defaultLpMintAddress;
+        defaultLpMintAddress = newValue;
+
+        emit ChangeDefaultLpMintAddress(oldValue, newValue);
     }
 
     function setWethReceiver(address value) external onlyAdmin {
