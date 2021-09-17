@@ -1252,6 +1252,38 @@ describe("Exilon contract tests", () => {
         });
     });
 
+    it("Test pause", async () => {
+        await expectRevert(
+            ExilonInst.pauseTransfers({ from: distributionAddress1 }),
+            "Exilon: Sender is not admin"
+        );
+        await expectRevert(
+            ExilonInst.unpauseTransfers({ from: distributionAddress1 }),
+            "Exilon: Sender is not admin"
+        );
+
+        expect(await ExilonInst.isPaused()).to.be.false;
+        await expectRevert(
+            ExilonInst.unpauseTransfers({ from: exilonAdmin }),
+            "Exilon: Already unpaused"
+        );
+        await ExilonInst.pauseTransfers({ from: exilonAdmin });
+        expect(await ExilonInst.isPaused()).to.be.true;
+        await expectRevert(
+            ExilonInst.pauseTransfers({ from: exilonAdmin }),
+            "Exilon: Already paused"
+        );
+        await ExilonInst.unpauseTransfers({ from: exilonAdmin });
+        expect(await ExilonInst.isPaused()).to.be.false;
+
+        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN) });
+        await ExilonInst.pauseTransfers({ from: exilonAdmin });
+        await expectRevert(
+            ExilonInst.transfer(distributionAddress2, ONE_TOKEN, { from: distributionAddress1 }),
+            "Exion: Transfers is paused"
+        );
+    });
+
     it("forceLpFeesDistribute()", async () => {
         let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN) });
         let blocknumber = new BN(tx.receipt.blockNumber);

@@ -45,6 +45,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     mapping(address => bool) public isAddressInIncomingBlacklist;
     mapping(address => bool) public isAddressInOutcomingBlacklist;
 
+    bool public isPaused;
+
     // private data
 
     uint8 private constant _DECIMALS = 6;
@@ -108,6 +110,9 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     event BlacklistedForOutcoming(address user);
     event UnblacklistedForIncoming(address user);
     event UnblacklistedForOutcoming(address user);
+
+    event TransfersPaused();
+    event TransfersUnpaused();
 
     /* FUNCTIONS */
 
@@ -367,6 +372,20 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         emit UnblacklistedForOutcoming(addr);
     }
 
+    function pauseTransfers() external onlyAdmin {
+        require(!isPaused, "Exilon: Already paused");
+        isPaused = true;
+
+        emit TransfersPaused();
+    }
+
+    function unpauseTransfers() external onlyAdmin {
+        require(isPaused, "Exilon: Already unpaused");
+        isPaused = false;
+
+        emit TransfersUnpaused();
+    }
+
     function name() external view virtual override returns (string memory) {
         return _NAME;
     }
@@ -450,6 +469,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         address to,
         uint256 amount
     ) private {
+        require(!isPaused, "Exion: Transfers is paused");
         bool isFromFixed = _excludedFromDistribution.contains(from);
         bool isToFixed = _excludedFromDistribution.contains(to);
 
