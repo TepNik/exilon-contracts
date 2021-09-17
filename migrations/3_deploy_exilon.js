@@ -3,8 +3,8 @@ const {
     EXILON_DEPLOY_GASLIMIT,
     DEX_ROUTER_MAINNET,
     DEX_ROUTER_TESTNET,
-    BUSD_WBNB_PAIR_MAINNET,
-    BUSD_WBNB_PAIR_TESTNET,
+    BUSD_MAINNET,
+    BUSD_TESTNET,
 } = process.env;
 
 const Exilon = artifacts.require("Exilon");
@@ -18,20 +18,21 @@ module.exports = async function (deployer, network) {
     let DistributionInst = await Distribution.deployed();
 
     let routerAddress;
-    let usdWethPair;
+    let usdAddress;
     if (network == "bsc") {
         routerAddress = DEX_ROUTER_MAINNET;
-        usdWethPair = BUSD_WBNB_PAIR_MAINNET;
+        usdAddress = BUSD_MAINNET;
     } else {
         routerAddress = DEX_ROUTER_TESTNET;
-        usdWethPair = BUSD_WBNB_PAIR_TESTNET;
+        usdAddress = BUSD_TESTNET;
     }
 
     await deployer.deploy(
         Exilon,
         routerAddress,
-        usdWethPair,
+        usdAddress,
         [DistributionInst.address],
+        DistributionInst.address,
         DistributionInst.address,
         { gas: EXILON_DEPLOY_GASLIMIT }
     );

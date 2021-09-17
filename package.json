@@ -8,7 +8,7 @@
         "testTransfers": "npm run prettier && truffle compile && mocha --recursive --exit --timeout 5000000 --grep 'transfer()'",
         "testDex": "npm run prettier && truffle compile && mocha --recursive --exit --timeout 5000000 --grep 'Dex buy and sell'",
         "testLiquidity": "npm run prettier && truffle compile && mocha --recursive --exit --timeout 5000000 --grep 'Adding and removing liquidity'",
-        "testBurn": "npm run prettier && truffle compile && mocha --recursive --exit --timeout 5000000 --grep 'Stop burn at 60%'",
+        "testBurn": "npm run prettier && truffle compile && mocha --recursive --exit --timeout 5000000 --grep 'Burn'",
         "testLpDistribution": "npm run prettier && truffle compile && mocha --recursive --exit --timeout 5000000 --grep 'Distribute fees to lp'",
         "testBlacklist": "npm run prettier && truffle compile && mocha --recursive --exit --timeout 5000000 --grep 'Test blacklist for income/outcome'",
         "prettier": "prettier --write './**/*.sol' './**/*.js' './**/*.json'"

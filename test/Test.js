@@ -58,7 +58,7 @@ const STEP_DELTA_BLOCK = [
     new BN(60),
 ];
 
-const usdTokenLiquidity = ONE_ETH.mul(TEN).mul(TEN);
+const usdTokenLiquidity = ONE_ETH.mul(TEN).mul(TEN).mul(TEN);
 const usdWethLiquidity = ONE_ETH.mul(TEN).mul(TEN).mul(TEN).mul(TEN);
 
 const PancakeFactory = contract.fromArtifact("PancakeFactory");
@@ -87,6 +87,7 @@ describe("Exilon contract tests", () => {
     const [
         feeToSetter,
         exilonAdmin,
+        marketingAddress,
         defaultLpMintAddress,
         distributionAddress1,
         distributionAddress2,
@@ -124,7 +125,7 @@ describe("Exilon contract tests", () => {
 
         ExilonInst = await Exilon.new(
             PancakeRouterInst.address,
-            UsdWethPairInst.address,
+            UsdTokenInst.address,
             [
                 distributionAddress1,
                 distributionAddress2,
@@ -136,6 +137,7 @@ describe("Exilon contract tests", () => {
                 distributionAddress8,
             ],
             defaultLpMintAddress,
+            marketingAddress,
             { from: exilonAdmin }
         );
 
@@ -149,6 +151,7 @@ describe("Exilon contract tests", () => {
         fixedAddresses = [];
         fixedAddresses.push(ExilonDexPairInst.address);
         fixedAddresses.push(BURN_ADDRESS);
+        fixedAddresses.push(marketingAddress);
 
         notFixedAddresses = [];
         notFixedAddresses.push(exilonAdmin);
@@ -248,7 +251,10 @@ describe("Exilon contract tests", () => {
 
     describe("transfer()", () => {
         it("transferFrom()", async () => {
-            await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+            await ExilonInst.addLiquidity({
+                from: exilonAdmin,
+                value: liquidityAmount,
+            });
 
             let balance = await ExilonInst.balanceOf(distributionAddress1);
 
@@ -271,6 +277,9 @@ describe("Exilon contract tests", () => {
             await ExilonInst.transferFrom(distributionAddress1, distributionAddress2, balance, {
                 from: distributionAddress2,
             });
+            expect(
+                await ExilonInst.allowance(distributionAddress1, distributionAddress2)
+            ).to.be.bignumber.equals(ZERO);
         });
 
         describe("No fees", () => {
@@ -291,7 +300,7 @@ describe("Exilon contract tests", () => {
                     distributionAddress1,
                     distributionAddress2,
                     await ExilonInst.balanceOf(distributionAddress1),
-                    [ZERO, ZERO, ZERO]
+                    false
                 );
 
                 // test trasnfer of part balance
@@ -299,7 +308,7 @@ describe("Exilon contract tests", () => {
                     distributionAddress2,
                     distributionAddress1,
                     (await ExilonInst.balanceOf(distributionAddress2)).div(THREE),
-                    [ZERO, ZERO, ZERO]
+                    false
                 );
             });
 
@@ -320,7 +329,7 @@ describe("Exilon contract tests", () => {
                     distributionAddress5,
                     distributionAddress6,
                     await ExilonInst.balanceOf(distributionAddress5),
-                    [ZERO, ZERO, ZERO]
+                    false
                 );
 
                 // test transfer part of balance
@@ -328,7 +337,7 @@ describe("Exilon contract tests", () => {
                     distributionAddress6,
                     distributionAddress5,
                     (await ExilonInst.balanceOf(distributionAddress6)).div(THREE),
-                    [ZERO, ZERO, ZERO]
+                    false
                 );
             });
 
@@ -349,7 +358,7 @@ describe("Exilon contract tests", () => {
                     distributionAddress5,
                     distributionAddress1,
                     await ExilonInst.balanceOf(distributionAddress5),
-                    [ZERO, ZERO, ZERO]
+                    false
                 );
 
                 // test trasnfer of full balance from not fixed to fixed
@@ -357,7 +366,7 @@ describe("Exilon contract tests", () => {
                     distributionAddress1,
                     distributionAddress5,
                     await ExilonInst.balanceOf(distributionAddress1),
-                    [ZERO, ZERO, ZERO]
+                    false
                 );
 
                 // test transfer less than half balance from fixed to not fixed
@@ -365,7 +374,7 @@ describe("Exilon contract tests", () => {
                     distributionAddress5,
                     distributionAddress1,
                     (await ExilonInst.balanceOf(distributionAddress5)).div(THREE),
-                    [ZERO, ZERO, ZERO]
+                    false
                 );
 
                 // test transfer of half balance from not fixed to fixed
@@ -373,14 +382,14 @@ describe("Exilon contract tests", () => {
                     distributionAddress1,
                     distributionAddress5,
                     (await ExilonInst.balanceOf(distributionAddress1)).div(THREE),
-                    [ZERO, ZERO, ZERO]
+                    false
                 );
             });
         });
 
         describe("With fees", () => {
             it("Between not fixed addresses", async () => {
-                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+                await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
                 await makeFixedAddress(distributionAddress5);
                 await makeFixedAddress(distributionAddress6);
                 await makeFixedAddress(distributionAddress7);
@@ -393,7 +402,7 @@ describe("Exilon contract tests", () => {
                     distributionAddress1,
                     distributionAddress2,
                     await ExilonInst.balanceOf(distributionAddress1),
-                    [EIGHT, THREE, ONE]
+                    true
                 );
 
                 // test trasnfer of part balance
@@ -401,12 +410,12 @@ describe("Exilon contract tests", () => {
                     distributionAddress2,
                     distributionAddress1,
                     (await ExilonInst.balanceOf(distributionAddress2)).div(THREE),
-                    [EIGHT, THREE, ONE]
+                    true
                 );
             });
 
             it("Between fixed addresses", async () => {
-                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+                await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
                 await makeFixedAddress(distributionAddress5);
                 await makeFixedAddress(distributionAddress6);
                 await makeFixedAddress(distributionAddress7);
@@ -419,20 +428,20 @@ describe("Exilon contract tests", () => {
                     distributionAddress5,
                     distributionAddress6,
                     await ExilonInst.balanceOf(distributionAddress5),
-                    [EIGHT, THREE, ONE]
+                    true
                 );
 
                 // test transfer part of balance
                 await checkTransfer(
-                    distributionAddress5,
                     distributionAddress6,
-                    (await ExilonInst.balanceOf(distributionAddress5)).div(THREE),
-                    [EIGHT, THREE, ONE]
+                    distributionAddress5,
+                    (await ExilonInst.balanceOf(distributionAddress6)).div(THREE),
+                    true
                 );
             });
 
             it("Between not fixed and fixed addresses", async () => {
-                await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+                await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
                 await makeFixedAddress(distributionAddress5);
                 await makeFixedAddress(distributionAddress6);
                 await makeFixedAddress(distributionAddress7);
@@ -445,7 +454,7 @@ describe("Exilon contract tests", () => {
                     distributionAddress5,
                     distributionAddress1,
                     await ExilonInst.balanceOf(distributionAddress5),
-                    [EIGHT, THREE, ONE]
+                    true
                 );
 
                 // test trasnfer of full balance from not fixed to fixed
@@ -453,7 +462,7 @@ describe("Exilon contract tests", () => {
                     distributionAddress1,
                     distributionAddress5,
                     await ExilonInst.balanceOf(distributionAddress1),
-                    [EIGHT, THREE, ONE]
+                    true
                 );
 
                 // test transfer less than half balance from fixed to not fixed
@@ -461,7 +470,7 @@ describe("Exilon contract tests", () => {
                     distributionAddress5,
                     distributionAddress1,
                     (await ExilonInst.balanceOf(distributionAddress5)).div(THREE),
-                    [EIGHT, THREE, ONE]
+                    true
                 );
 
                 // test transfer of half balance from not fixed to fixed
@@ -469,7 +478,7 @@ describe("Exilon contract tests", () => {
                     distributionAddress1,
                     distributionAddress5,
                     (await ExilonInst.balanceOf(distributionAddress1)).div(THREE),
-                    [EIGHT, THREE, ONE]
+                    true
                 );
             });
         });
@@ -993,149 +1002,155 @@ describe("Exilon contract tests", () => {
 
     describe("Burn", () => {
         it("Stop at 60% from 59%", async () => {
-            await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
+            let tx = await ExilonInst.addLiquidity({
+                from: exilonAdmin,
+                value: liquidityAmount,
+            });
+            let blocknumber = new BN(tx.receipt.blockNumber);
+            let timestamp = new BN((await web3.eth.getBlock(blocknumber)).timestamp);
             await makeFixedAddress(distributionAddress5);
             await makeFixedAddress(distributionAddress6);
             await makeFixedAddress(distributionAddress7);
             await makeFixedAddress(distributionAddress8);
 
             await ExilonInst.setWethLimitForLpFee(liquidityAmount, { from: exilonAdmin });
-            await checkRemoveLiquidity(
-                defaultLpMintAddress,
-                await ExilonDexPairInst.balanceOf(defaultLpMintAddress),
-                [EIGHT, THREE, ONE]
-            );
 
-            let from = defaultLpMintAddress;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
-                from: from,
-            });
-            from = distributionAddress1;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            let from = distributionAddress1;
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress2;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress3;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress4;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress5;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress6;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress7;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress8;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
+
+            await checkRemoveLiquidity(
+                defaultLpMintAddress,
+                (await ExilonDexPairInst.balanceOf(defaultLpMintAddress)).mul(NINE).div(TEN),
+                [EIGHT, THREE, ONE]
+            );
 
             let totalSupply = await ExilonInst.totalSupply();
             let maxBurnAmount = totalSupply.mul(SIX).div(TEN);
             let burnAmount = await ExilonInst.balanceOf(BURN_ADDRESS);
 
-            expect(await ExilonInst.balanceOf(exilonAdmin)).to.be.bignumber.above(
+            expect(await ExilonInst.balanceOf(defaultLpMintAddress)).to.be.bignumber.above(
                 maxBurnAmount.sub(burnAmount)
             );
-            await ExilonInst.excludeFromPayingFees(exilonAdmin, { from: exilonAdmin });
-            await ExilonInst.transfer(
-                BURN_ADDRESS,
-                maxBurnAmount.sub(burnAmount).sub(TEN.mul(TEN)),
-                { from: exilonAdmin }
-            );
-            await ExilonInst.includeToPayingFees(exilonAdmin, { from: exilonAdmin });
+            await ExilonInst.excludeFromPayingFees(defaultLpMintAddress, { from: exilonAdmin });
+            await ExilonInst.transfer(BURN_ADDRESS, maxBurnAmount.sub(burnAmount).sub(TEN), {
+                from: defaultLpMintAddress,
+            });
+            await ExilonInst.includeToPayingFees(defaultLpMintAddress, { from: exilonAdmin });
 
-            await checkTransfer(
-                exilonAdmin,
-                distributionAddress1,
-                await ExilonInst.balanceOf(exilonAdmin),
-                [EIGHT, THREE, ONE]
-            );
+            await time.advanceBlockTo(blocknumber.add(new BN("780")));
+            await time.increaseTo(timestamp.add(time.duration.minutes(60)));
+
+            await checkBuy(defaultLpMintAddress, ONE_ETH.mul(TEN).mul(TEN).mul(TEN), [
+                EIGHT,
+                THREE,
+                ONE,
+            ]);
         });
 
         it("Stop at 60% from 60%", async () => {
-            await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
+            let tx = await ExilonInst.addLiquidity({
+                from: exilonAdmin,
+                value: liquidityAmount,
+            });
+            let blocknumber = new BN(tx.receipt.blockNumber);
+            let timestamp = new BN((await web3.eth.getBlock(blocknumber)).timestamp);
             await makeFixedAddress(distributionAddress5);
             await makeFixedAddress(distributionAddress6);
             await makeFixedAddress(distributionAddress7);
             await makeFixedAddress(distributionAddress8);
 
             await ExilonInst.setWethLimitForLpFee(liquidityAmount, { from: exilonAdmin });
-            await checkRemoveLiquidity(
-                defaultLpMintAddress,
-                await ExilonDexPairInst.balanceOf(defaultLpMintAddress),
-                [EIGHT, THREE, ONE]
-            );
 
-            let from = defaultLpMintAddress;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
-                from: from,
-            });
-            from = distributionAddress1;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            let from = distributionAddress1;
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress2;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress3;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress4;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress5;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress6;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress7;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
             from = distributionAddress8;
-            await ExilonInst.transfer(exilonAdmin, await ExilonInst.balanceOf(from), {
+            await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
                 from: from,
             });
+
+            await checkRemoveLiquidity(
+                defaultLpMintAddress,
+                (await ExilonDexPairInst.balanceOf(defaultLpMintAddress)).mul(NINE).div(TEN),
+                [EIGHT, THREE, ONE]
+            );
 
             let totalSupply = await ExilonInst.totalSupply();
             let maxBurnAmount = totalSupply.mul(SIX).div(TEN);
             let burnAmount = await ExilonInst.balanceOf(BURN_ADDRESS);
 
-            expect(await ExilonInst.balanceOf(exilonAdmin)).to.be.bignumber.above(
+            expect(await ExilonInst.balanceOf(defaultLpMintAddress)).to.be.bignumber.above(
                 maxBurnAmount.sub(burnAmount)
             );
-            await ExilonInst.excludeFromPayingFees(exilonAdmin, { from: exilonAdmin });
+            await ExilonInst.excludeFromPayingFees(defaultLpMintAddress, { from: exilonAdmin });
             await ExilonInst.transfer(BURN_ADDRESS, maxBurnAmount.sub(burnAmount), {
-                from: exilonAdmin,
+                from: defaultLpMintAddress,
             });
-            await ExilonInst.includeToPayingFees(exilonAdmin, { from: exilonAdmin });
+            await ExilonInst.includeToPayingFees(defaultLpMintAddress, { from: exilonAdmin });
 
-            await checkTransfer(
-                exilonAdmin,
-                distributionAddress1,
-                await ExilonInst.balanceOf(exilonAdmin),
-                [EIGHT, THREE, ONE]
-            );
+            await time.advanceBlockTo(blocknumber.add(new BN("780")));
+            await time.increaseTo(timestamp.add(time.duration.minutes(60)));
+
+            await checkBuy(defaultLpMintAddress, ONE_ETH.mul(TEN).mul(TEN).mul(TEN), [
+                EIGHT,
+                THREE,
+                ONE,
+            ]);
         });
     });
 
@@ -1202,18 +1217,36 @@ describe("Exilon contract tests", () => {
         });
 
         it("Test transfers", async () => {
-            await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN) });
+            await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
 
             await ExilonInst.blacklistForIncoming(distributionAddress1, { from: exilonAdmin });
             await expectRevert(
-                ExilonInst.transfer(distributionAddress1, ONE, { from: distributionAddress2 }),
+                ExilonInst.transfer(
+                    distributionAddress1,
+                    await ExilonInst.balanceOf(distributionAddress2),
+                    {
+                        from: distributionAddress2,
+                    }
+                ),
                 "Exilon: Address `to` in income blacklist"
             );
-            await ExilonInst.transfer(distributionAddress2, ONE, { from: distributionAddress1 });
+            await ExilonInst.transfer(
+                distributionAddress2,
+                await ExilonInst.balanceOf(distributionAddress1),
+                {
+                    from: distributionAddress1,
+                }
+            );
 
             await ExilonInst.blacklistForOutcoming(distributionAddress1, { from: exilonAdmin });
             await expectRevert(
-                ExilonInst.transfer(distributionAddress2, ONE, { from: distributionAddress1 }),
+                ExilonInst.transfer(
+                    distributionAddress2,
+                    await ExilonInst.balanceOf(distributionAddress1),
+                    {
+                        from: distributionAddress1,
+                    }
+                ),
                 "Exilon: Address `from` in outcome blacklist"
             );
         });
@@ -2105,8 +2138,17 @@ describe("Exilon contract tests", () => {
         let transferAmount = amountsOut[1].sub(lpAmount).sub(burnAmount).sub(distributionAmount);
 
         isNear(balanceDexPairBefore.sub(balanceDexPairAfter), amountsOut[1]);
-        isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount);
-        isNear(burnAddressBalanceAfter.sub(burnAddressBalanceBefore), burnAmount);
+
+        let maxBurnAmount = TOTAL_SUPPLY.mul(SIX).div(TEN);
+        if (burnAddressBalanceBefore.add(burnAmount).gt(maxBurnAmount)) {
+            isNear(burnAddressBalanceAfter, maxBurnAmount);
+            let additionalToLp = burnAddressBalanceBefore.add(burnAmount).sub(maxBurnAmount);
+            isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount.add(additionalToLp));
+            lpAmount = lpAmount.add(additionalToLp);
+        } else {
+            isNear(burnAddressBalanceAfter.sub(burnAddressBalanceBefore), burnAmount);
+            isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount);
+        }
 
         for (let i = 0; i < fixedAddresses.length; ++i) {
             if (
@@ -2152,11 +2194,10 @@ describe("Exilon contract tests", () => {
         }
     }
 
-    async function checkTransfer(from, to, amount, feePercentages) {
+    async function checkTransfer(from, to, amount, withFee) {
         let balanceFromBefore = await ExilonInst.balanceOf(from);
         let balanceToBefore = await ExilonInst.balanceOf(to);
-        let feeAmountBefore = await ExilonInst.feeAmountInTokens();
-        let burnAddressBalanceBefore = await ExilonInst.balanceOf(BURN_ADDRESS);
+        let balanceMarketingBefore = await ExilonInst.balanceOf(marketingAddress);
 
         let fixedAddressesBalancesBefore = [];
         for (let i = 0; i < fixedAddresses.length; ++i) {
@@ -2170,6 +2211,20 @@ describe("Exilon contract tests", () => {
             notFixedBalancesBefore = notFixedBalancesBefore.add(notFixedAddressesBalancesBefore[i]);
         }
 
+        let feeAmountInUsd = TEN.pow(await UsdTokenInst.decimals());
+        let feeAmountInExilon;
+        if (withFee) {
+            feeAmountInExilon = (
+                await PancakeRouterInst.getAmountsIn(feeAmountInUsd, [
+                    ExilonInst.address,
+                    WETHInst.address,
+                    UsdTokenInst.address,
+                ])
+            )[0];
+        } else {
+            feeAmountInExilon = ZERO;
+        }
+
         let tx = await ExilonInst.transfer(to, amount, { from: from });
         let gasAmount = tx.receipt.gasUsed;
         if (testsWithOutput) {
@@ -2178,8 +2233,7 @@ describe("Exilon contract tests", () => {
 
         let balanceFromAfter = await ExilonInst.balanceOf(from);
         let balanceToAfter = await ExilonInst.balanceOf(to);
-        let feeAmountAfter = await ExilonInst.feeAmountInTokens();
-        let burnAddressBalanceAfter = await ExilonInst.balanceOf(BURN_ADDRESS);
+        let balanceMarketingAfter = await ExilonInst.balanceOf(marketingAddress);
 
         let fixedAddressesBalancesAfter = [];
         for (let i = 0; i < fixedAddresses.length; ++i) {
@@ -2193,25 +2247,15 @@ describe("Exilon contract tests", () => {
             notFixedBalancesAfter = notFixedBalancesAfter.add(notFixedAddressesBalancesAfter[i]);
         }
 
-        let lpAmount = amount.mul(feePercentages[0]).div(new BN("100"));
-        let burnAmount = amount.mul(feePercentages[1]).div(new BN("100"));
-        let distributionAmount = amount.mul(feePercentages[2]).div(new BN("100"));
-
-        let maxBurnAmount = TOTAL_SUPPLY.mul(SIX).div(TEN);
-        if (burnAddressBalanceBefore.add(burnAmount).gt(maxBurnAmount)) {
-            isNear(burnAddressBalanceAfter, maxBurnAmount);
-            let additionalToLp = burnAddressBalanceBefore.add(burnAmount).sub(maxBurnAmount);
-            isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount.add(additionalToLp));
-        } else {
-            isNear(burnAddressBalanceAfter.sub(burnAddressBalanceBefore), burnAmount);
-            isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount);
-        }
+        expect(balanceMarketingAfter.sub(balanceMarketingBefore)).to.be.bignumber.equals(
+            feeAmountInExilon
+        );
 
         for (let i = 0; i < fixedAddresses.length; ++i) {
             if (
                 fixedAddresses[i] != from &&
                 fixedAddresses[i] != to &&
-                fixedAddresses[i] != BURN_ADDRESS
+                fixedAddresses[i] != marketingAddress
             ) {
                 expect(
                     fixedAddressesBalancesAfter[i].sub(fixedAddressesBalancesBefore[i])
@@ -2222,52 +2266,20 @@ describe("Exilon contract tests", () => {
         let isFromNotFixed = notFixedAddresses.indexOf(from) != -1;
         let isToNotFixed = notFixedAddresses.indexOf(to) != -1;
         if (isFromNotFixed && isToNotFixed) {
-            isNear(notFixedBalancesBefore.sub(notFixedBalancesAfter), lpAmount.add(burnAmount));
+            isNear(notFixedBalancesBefore.sub(notFixedBalancesAfter), feeAmountInExilon);
         } else if (isFromNotFixed && !isToNotFixed) {
-            isNear(
-                notFixedBalancesBefore.sub(notFixedBalancesAfter),
-                amount.sub(distributionAmount)
-            );
+            isNear(notFixedBalancesBefore.sub(notFixedBalancesAfter), amount);
         } else if (!isFromNotFixed && isToNotFixed) {
             isNear(
                 notFixedBalancesAfter.sub(notFixedBalancesBefore),
-                amount.sub(lpAmount).sub(burnAmount)
+                amount.sub(feeAmountInExilon)
             );
         } else if (!isFromNotFixed && !isToNotFixed) {
-            isNear(notFixedBalancesAfter.sub(notFixedBalancesBefore), distributionAmount);
+            isNear(notFixedBalancesAfter.sub(notFixedBalancesBefore), ZERO);
         }
 
-        if (isFromNotFixed == false) {
-            isNear(balanceFromBefore.sub(balanceFromAfter), amount);
-        }
-        if (isToNotFixed == false) {
-            isNear(
-                balanceToAfter.sub(balanceToBefore),
-                amount.sub(lpAmount).sub(burnAmount).sub(distributionAmount)
-            );
-        }
-
-        for (let i = 0; i < notFixedAddresses.length; ++i) {
-            let amountToGet = notFixedAddressesBalancesAfter[i]
-                .mul(distributionAmount)
-                .div(notFixedBalancesAfter);
-            if (notFixedAddresses[i] != from && notFixedAddresses[i] != to) {
-                isNear(
-                    notFixedAddressesBalancesAfter[i].sub(notFixedAddressesBalancesBefore[i]),
-                    amountToGet
-                );
-            } else if (notFixedAddresses[i] == to) {
-                isNear(
-                    notFixedAddressesBalancesAfter[i].sub(notFixedAddressesBalancesBefore[i]),
-                    amountToGet.add(amount).sub(lpAmount).sub(burnAmount).sub(distributionAmount)
-                );
-            } else if (notFixedAddresses[i] == from) {
-                isNear(
-                    notFixedAddressesBalancesBefore[i].sub(notFixedAddressesBalancesAfter[i]),
-                    amount.sub(amountToGet)
-                );
-            }
-        }
+        isNear(balanceFromBefore.sub(balanceFromAfter), amount);
+        isNear(balanceToAfter.sub(balanceToBefore), amount.sub(feeAmountInExilon));
     }
 
     function printLogs(logs) {
