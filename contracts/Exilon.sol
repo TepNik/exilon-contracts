@@ -42,6 +42,9 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     uint256 public feeAmountInTokens;
     uint256 public wethLimitForLpFee = 2 ether;
 
+    mapping(address => bool) public isAddressInIncomingBlacklist;
+    mapping(address => bool) public isAddressInOutcomingBlacklist;
+
     // private data
 
     uint8 private constant _DECIMALS = 6;
@@ -90,12 +93,21 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
     event ExcludedFromFeesDistribution(address indexed user);
     event IncludedToFeesDistribution(address indexed user);
+
     event ExcludedFromPayingFees(address indexed user);
     event IncludedToPayingFees(address indexed user);
+
     event ChangeWethLimitForLpFee(uint256 oldValue, uint256 newValue);
     event ChangeDefaultLpMintAddress(address indexed oldValue, address indexed newValue);
+
     event ForceLpFeesDistribution();
+
     event LiquidityAdded(uint256 amount);
+
+    event BlacklistedForIncoming(address user);
+    event BlacklistedForOutcoming(address user);
+    event UnblacklistedForIncoming(address user);
+    event UnblacklistedForOutcoming(address user);
 
     /* FUNCTIONS */
 
@@ -325,6 +337,34 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     function setWethReceiver(address value) external onlyAdmin {
         require(wethReceiver == address(0) && value != address(0), "Exilon: Only once");
         wethReceiver = value;
+    }
+
+    function blacklistForIncoming(address addr) external onlyAdmin {
+        require(!isAddressInIncomingBlacklist[addr], "Exilon: Already income blacklisted");
+        isAddressInIncomingBlacklist[addr] = true;
+
+        emit BlacklistedForIncoming(addr);
+    }
+
+    function blacklistForOutcoming(address addr) external onlyAdmin {
+        require(!isAddressInOutcomingBlacklist[addr], "Exilon: Already outcome blacklisted");
+        isAddressInOutcomingBlacklist[addr] = true;
+
+        emit BlacklistedForOutcoming(addr);
+    }
+
+    function unblacklistForIncoming(address addr) external onlyAdmin {
+        require(isAddressInIncomingBlacklist[addr], "Exilon: Already income unblacklisted");
+        isAddressInIncomingBlacklist[addr] = false;
+
+        emit UnblacklistedForIncoming(addr);
+    }
+
+    function unblacklistForOutcoming(address addr) external onlyAdmin {
+        require(isAddressInOutcomingBlacklist[addr], "Exilon: Already outcome unblacklisted");
+        isAddressInOutcomingBlacklist[addr] = false;
+
+        emit UnblacklistedForOutcoming(addr);
     }
 
     function name() external view virtual override returns (string memory) {
@@ -849,6 +889,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         // because of the gas optimisation (checking of balances is further in code)
 
         if (to == _dexPair) {
+            require(!isAddressInOutcomingBlacklist[from], "Exilon: Address in outcome blacklist");
             // if selling
             if (_excludedFromPayingFees.contains(from)) {
                 return ([uint256(0), 0, 0], false);
@@ -867,12 +908,18 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             }
             return ([uint256(8), 3, 1], true);
         } else if (from == _dexPair) {
+            require(!isAddressInIncomingBlacklist[to], "Exilon: Address in income blacklist");
             // if buying
             if (_excludedFromPayingFees.contains(to)) {
                 // if buying account is excluded from paying fees
                 return ([uint256(0), 0, 0], false);
             }
         } else {
+            require(
+                !isAddressInOutcomingBlacklist[from],
+                "Exilon: Address `from` in outcome blacklist"
+            );
+            require(!isAddressInIncomingBlacklist[to], "Exilon: Address `to` in income blacklist");
             // if transfer
             if (_excludedFromPayingFees.contains(from) || _excludedFromPayingFees.contains(to)) {
                 return ([uint256(0), 0, 0], false);

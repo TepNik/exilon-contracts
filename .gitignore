@@ -6,3 +6,4 @@ bin/
 test.json
 .DS_store
 yarn.lock
+TODO.txt
