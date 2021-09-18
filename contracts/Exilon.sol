@@ -61,7 +61,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     uint8 private constant _DECIMALS = 6;
 
     string private constant _NAME = "Exilon";
-    string private constant _SYMBOL = "XLNT";
+    string private constant _SYMBOL = "XLN";
 
     mapping(address => mapping(address => uint256)) private _allowances;
 
@@ -293,6 +293,11 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
             notFixedInternalTotalSupply -= notFixedUserBalance;
             _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
+
+            require(
+                notFixedExternalTotalSupply != 0 && notFixedInternalTotalSupply != 0,
+                "Exilon: Must be at least one notFixed address"
+            );
         }
 
         emit ExcludedFromFeesDistribution(user);

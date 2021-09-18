@@ -22,7 +22,7 @@ module.exports = async function (deployer, network) {
     }
 
     if ((await DistributionInst.token()) == constants.ZERO_ADDRESS) {
-        let tokenLp = await ExilonInst.dexPair();
+        let tokenLp = await ExilonInst.dexPairExilonWeth();
         console.log("Connecting Exilon and Distribution");
         await DistributionInst.setTokenInfo(ExilonInst.address, tokenLp);
     }
