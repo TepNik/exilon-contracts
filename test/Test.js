@@ -2145,6 +2145,7 @@ describe("Exilon contract tests", () => {
             let additionalToLp = burnAddressBalanceBefore.add(burnAmount).sub(maxBurnAmount);
             isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount.add(additionalToLp));
             lpAmount = lpAmount.add(additionalToLp);
+            burnAmount = burnAmount.sub(additionalToLp);
         } else {
             isNear(burnAddressBalanceAfter.sub(burnAddressBalanceBefore), burnAmount);
             isNear(feeAmountAfter.sub(feeAmountBefore), lpAmount);

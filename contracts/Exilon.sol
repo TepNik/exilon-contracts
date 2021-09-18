@@ -915,12 +915,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             fees.lpFee = (amount * 8) / 100;
         }
 
+        uint256 additionalToLp;
         if (fees.burnFee > 0) {
-            fees.lpFee += _makeBurnAction(from, fees.burnFee);
+            additionalToLp = _makeBurnAction(from, fees.burnFee);
         }
 
         if (fees.lpFee > 0) {
-            _distributeLpFee(from, fees.lpFee, false, poolInfo);
+            _distributeLpFee(from, fees.lpFee + additionalToLp, false, poolInfo);
         }
 
         transferAmount = amount - fees.burnFee - fees.lpFee - fees.distributeFee;
@@ -960,15 +961,16 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             }
         }
 
+        uint256 additionalToLp;
         if (fees.burnFee > 0) {
-            fees.lpFee += _makeBurnAction(from, fees.burnFee);
+            additionalToLp = _makeBurnAction(from, fees.burnFee);
         }
 
         if (fees.lpFee > 0) {
             PoolInfo memory poolInfo;
             poolInfo.dexPair = _dexPairExilonWeth;
             poolInfo.weth = _weth;
-            _distributeLpFee(from, fees.lpFee, false, poolInfo);
+            _distributeLpFee(from, fees.lpFee + additionalToLp, false, poolInfo);
         }
 
         transferAmount = amount - fees.burnFee - fees.lpFee - fees.distributeFee;
