@@ -111,6 +111,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     event ChangeWethLimitForLpFee(uint256 oldValue, uint256 newValue);
     event ChangeDefaultLpMintAddress(address indexed oldValue, address indexed newValue);
     event ChangeSetFeeAmountInUsd(uint256 oldValue, uint256 newValue);
+    event ChangeMarketingAddress(address oldValue, address newValue);
 
     event ForceLpFeesDistribution();
 
@@ -298,7 +299,10 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     }
 
     function includeToFeesDistribution(address user) external onlyWhenLiquidityAdded onlyAdmin {
-        require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
+        require(
+            user != address(0xdead) && user != dexPairExilonWeth && user != marketingAddress,
+            "Exilon: Wrong address"
+        );
         require(_excludedFromDistribution.remove(user) == true, "Exilon: Already included");
 
         uint256 fixedUserBalance = _fixedBalances[user];
@@ -360,6 +364,17 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         feeAmountInUsd = newValue;
 
         emit ChangeSetFeeAmountInUsd(oldValue, newValue);
+    }
+
+    function setMarketingAddress(address newValue) external onlyAdmin {
+        require(
+            _excludedFromDistribution.contains(newValue),
+            "Exilon: Marketing address must be fixed"
+        );
+        address oldValue = marketingAddress;
+        marketingAddress = newValue;
+
+        emit ChangeMarketingAddress(oldValue, newValue);
     }
 
     function blacklistForIncoming(address addr) external onlyAdmin {

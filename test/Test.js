@@ -1412,6 +1412,18 @@ describe("Exilon contract tests", () => {
             ExilonInst.includeToFeesDistribution(distributionAddress1, { from: exilonAdmin }),
             "Exilon: Already included"
         );
+        await expectRevert(
+            ExilonInst.includeToFeesDistribution(BURN_ADDRESS, { from: exilonAdmin }),
+            "Exilon: Wrong address"
+        );
+        await expectRevert(
+            ExilonInst.includeToFeesDistribution(ExilonDexPairInst.address, { from: exilonAdmin }),
+            "Exilon: Wrong address"
+        );
+        await expectRevert(
+            ExilonInst.includeToFeesDistribution(marketingAddress, { from: exilonAdmin }),
+            "Exilon: Wrong address"
+        );
 
         balanceAfter = await ExilonInst.balanceOf(distributionAddress1);
 
@@ -1455,6 +1467,43 @@ describe("Exilon contract tests", () => {
         expect(await ExilonInst.excludedFromPayingFeesLen()).to.be.bignumber.equals(ZERO);
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress1)).to.be.false;
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress2)).to.be.false;
+    });
+
+    it("feeAmountInUsd check", async () => {
+        let oneDollar = TEN.pow(await UsdTokenInst.decimals());
+        expect(await ExilonInst.feeAmountInUsd()).to.be.bignumber.equals(oneDollar);
+
+        await expectRevert(
+            ExilonInst.setFeeAmountInUsd(oneDollar, { from: distributionAddress1 }),
+            "Exilon: Sender is not admin"
+        );
+
+        let newValue = oneDollar.div(TWO);
+        await ExilonInst.setFeeAmountInUsd(newValue, { from: exilonAdmin });
+        expect(await ExilonInst.feeAmountInUsd()).to.be.bignumber.equals(newValue);
+    });
+
+    it("marketing address check", async () => {
+        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+        expect(await ExilonInst.marketingAddress()).to.be.equals(marketingAddress);
+        expect(await ExilonInst.isExcludedFromDistribution(marketingAddress)).to.be.true;
+
+        await expectRevert(
+            ExilonInst.setMarketingAddress(distributionAddress1, {
+                from: distributionAddress1,
+            }),
+            "Exilon: Sender is not admin"
+        );
+        await expectRevert(
+            ExilonInst.setMarketingAddress(distributionAddress1, { from: exilonAdmin }),
+            "Exilon: Marketing address must be fixed"
+        );
+
+        await makeFixedAddress(distributionAddress1);
+
+        await ExilonInst.setMarketingAddress(distributionAddress1, { from: exilonAdmin });
+        expect(await ExilonInst.marketingAddress()).to.be.equals(distributionAddress1);
+        expect(await ExilonInst.isExcludedFromDistribution(distributionAddress1)).to.be.true;
     });
 
     async function makeFixedAddress(user) {
