@@ -39,7 +39,7 @@ const DEADLINE = new BN("10000000000000000000");
 const BURN_ADDRESS = "0x000000000000000000000000000000000000dEaD";
 
 const NAME = "Exilon";
-const SYMBOL = "XLNT";
+const SYMBOL = "XLN";
 const TOTAL_SUPPLY = new BN("7000000000000").mul(ONE_TOKEN);
 
 const AMOUNT_TO_LIQUIDITY = new BN("65");
@@ -68,7 +68,7 @@ const WETH = contract.fromArtifact("WETH");
 
 const ERC20Test = contract.fromArtifact("ERC20Test");
 
-const Exilon = contract.fromArtifact("Exilon");
+const Exilon = contract.fromArtifact("ExilonTest");
 const WethReceiver = contract.fromArtifact("wethReceiver");
 
 let PancakeFactoryInst;
@@ -1013,7 +1013,7 @@ describe("Exilon contract tests", () => {
             await makeFixedAddress(distributionAddress7);
             await makeFixedAddress(distributionAddress8);
 
-            await ExilonInst.setWethLimitForLpFee(liquidityAmount, { from: exilonAdmin });
+            await ExilonInst.setWethLimitForLpFeeTest(liquidityAmount, { from: exilonAdmin });
 
             let from = distributionAddress1;
             await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
@@ -1089,7 +1089,7 @@ describe("Exilon contract tests", () => {
             await makeFixedAddress(distributionAddress7);
             await makeFixedAddress(distributionAddress8);
 
-            await ExilonInst.setWethLimitForLpFee(liquidityAmount, { from: exilonAdmin });
+            await ExilonInst.setWethLimitForLpFeeTest(liquidityAmount, { from: exilonAdmin });
 
             let from = distributionAddress1;
             await ExilonInst.transfer(defaultLpMintAddress, await ExilonInst.balanceOf(from), {
@@ -1583,7 +1583,7 @@ describe("Exilon contract tests", () => {
         let tokenAmountToSell = ZERO;
         let wethAmountToBuy = ZERO;
         if (isWithDistribution) {
-            await ExilonInst.setWethLimitForLpFee(
+            await ExilonInst.setWethLimitForLpFeeTest(
                 wethPriceOfTokens.add(contractWethBalanceBefore),
                 { from: exilonAdmin }
             );
@@ -1615,7 +1615,7 @@ describe("Exilon contract tests", () => {
                 );
             }
         } else {
-            await ExilonInst.setWethLimitForLpFee(
+            await ExilonInst.setWethLimitForLpFeeTest(
                 wethPriceOfTokens.add(contractWethBalanceBefore).add(ONE),
                 { from: exilonAdmin }
             );

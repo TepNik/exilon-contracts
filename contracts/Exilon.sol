@@ -71,7 +71,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     mapping(address => uint256) private _fixedBalances;
 
     uint256 private constant _TOTAL_EXTERNAL_SUPPLY = 7 * 10**12 * 10**_DECIMALS;
+    // div by _TOTAL_EXTERNAL_SUPPLY is needed because
+    // notFixedExternalTotalSupply * notFixedInternalTotalSupply
+    // must fit into uint256
+    uint256 private constant _MAX_INTERNAL_SUPPLY = type(uint256).max / _TOTAL_EXTERNAL_SUPPLY;
     uint256 private constant _INITIAL_AMOUNT_TO_LIQUIDITY = (_TOTAL_EXTERNAL_SUPPLY * 65) / 100;
+
+    uint256 private immutable _MAX_FEE_AMOUNT_IN_USD_FOR_TRANSFERS;
 
     // _notFixedInternalTotalSupply * _notFixedExternalTotalSupply <= type(uint256).max
     uint256 private _notFixedExternalTotalSupply;
@@ -145,7 +151,9 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
         {
             usdAddress = _usdAddress;
-            feeAmountInUsd = 10**IERC20Metadata(_usdAddress).decimals();
+            uint256 oneUsd = 10**IERC20Metadata(_usdAddress).decimals();
+            feeAmountInUsd = oneUsd;
+            _MAX_FEE_AMOUNT_IN_USD_FOR_TRANSFERS = 10 * oneUsd;
 
             address _dexPairUsdWeth = dexFactory.getPair(weth, _usdAddress);
             require(_dexPairUsdWeth != address(0), "Exilon: Wrong usd token");
@@ -169,10 +177,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         // because LP pair is exluded from distribution
         uint256 notFixedExternalTotalSupply = _TOTAL_EXTERNAL_SUPPLY;
 
-        // div by _TOTAL_EXTERNAL_SUPPLY is needed because
-        // notFixedExternalTotalSupply * notFixedInternalTotalSupply
-        // must fit into uint256
-        uint256 notFixedInternalTotalSupply = type(uint256).max / _TOTAL_EXTERNAL_SUPPLY;
+        uint256 notFixedInternalTotalSupply = _MAX_INTERNAL_SUPPLY;
 
         uint256 notFixedAmount = (_INITIAL_AMOUNT_TO_LIQUIDITY * notFixedInternalTotalSupply) /
             notFixedExternalTotalSupply;
@@ -293,11 +298,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
             notFixedInternalTotalSupply -= notFixedUserBalance;
             _notFixedInternalTotalSupply = notFixedInternalTotalSupply;
-
-            require(
-                notFixedExternalTotalSupply != 0 && notFixedInternalTotalSupply != 0,
-                "Exilon: Must be at least one notFixed address"
-            );
         }
 
         emit ExcludedFromFeesDistribution(user);
@@ -315,8 +315,23 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
             uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
 
-            uint256 notFixedUserBalance = (fixedUserBalance * notFixedInternalTotalSupply) /
-                notFixedExternalTotalSupply;
+            uint256 notFixedUserBalance;
+            if (notFixedInternalTotalSupply == 0) {
+                // if there was no notFixed accounts
+
+                // notice that
+                // notFixedInternalTotalSupply != 0  <=>  notFixedExternalTotalSupply != 0
+                // and
+                // notFixedInternalTotalSupply == 0  <=>  notFixedExternalTotalSupply == 0
+
+                notFixedUserBalance =
+                    (fixedUserBalance * _MAX_INTERNAL_SUPPLY) /
+                    _TOTAL_EXTERNAL_SUPPLY;
+            } else {
+                notFixedUserBalance =
+                    (fixedUserBalance * notFixedInternalTotalSupply) /
+                    notFixedExternalTotalSupply;
+            }
 
             _notFixedBalances[user] = notFixedUserBalance;
             delete _fixedBalances[user];
@@ -346,6 +361,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     }
 
     function setWethLimitForLpFee(uint256 newValue) external onlyAdmin {
+        require(newValue <= 10 ether, "Exilon: Too big value");
         uint256 oldValue = wethLimitForLpFee;
         wethLimitForLpFee = newValue;
 
@@ -365,6 +381,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     }
 
     function setFeeAmountInUsd(uint256 newValue) external onlyAdmin {
+        require(newValue <= _MAX_FEE_AMOUNT_IN_USD_FOR_TRANSFERS, "Exilon: Too big value");
         uint256 oldValue = feeAmountInUsd;
         feeAmountInUsd = newValue;
 
@@ -536,7 +553,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         if (from == _dexPairExilonWeth) {
             // buy tokens
             FeesInfo memory fees;
-            (transferAmount, fees) = _makeBuyAction(_dexPairExilonWeth, from, to, amount);
+            (transferAmount, fees) = _makeBuyAction(
+                _dexPairExilonWeth,
+                from,
+                to,
+                amount,
+                _notFixedInternalTotalSupply
+            );
 
             if (fees.distributeFee > 0) {
                 // Fee to distribute between users
@@ -549,7 +572,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 _dexPairExilonWeth,
                 from,
                 amount,
-                amount >= (fixedBalanceFrom * 9) / 10
+                amount >= (fixedBalanceFrom * 9) / 10,
+                _notFixedInternalTotalSupply
             );
 
             if (fees.distributeFee > 0) {
@@ -574,6 +598,9 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         require(fixedBalanceFrom >= amount, "Exilon: Amount exceeds balance");
         _fixedBalances[from] = (fixedBalanceFrom - amount);
 
+        uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
+        uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
+
         address _dexPairExilonWeth = dexPairExilonWeth;
         uint256 transferAmount;
         uint256 distributionAmount;
@@ -582,17 +609,26 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         if (from == _dexPairExilonWeth) {
             // buy tokens
             FeesInfo memory fees;
-            (transferAmount, fees) = _makeBuyAction(_dexPairExilonWeth, from, to, amount);
+            (transferAmount, fees) = _makeBuyAction(
+                _dexPairExilonWeth,
+                from,
+                to,
+                amount,
+                notFixedInternalTotalSupply
+            );
             distributionAmount = fees.distributeFee;
         } else {
             (transferAmount, ) = _makeTransferAction(_dexPairExilonWeth, from, to, amount);
         }
 
-        uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
-        uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
-
-        uint256 notFixedAmount = (transferAmount * notFixedInternalTotalSupply) /
-            notFixedExternalTotalSupply;
+        uint256 notFixedAmount;
+        if (notFixedInternalTotalSupply == 0) {
+            notFixedAmount = (transferAmount * _MAX_INTERNAL_SUPPLY) / _TOTAL_EXTERNAL_SUPPLY;
+        } else {
+            notFixedAmount =
+                (transferAmount * notFixedInternalTotalSupply) /
+                notFixedExternalTotalSupply;
+        }
         _notFixedBalances[to] += notFixedAmount;
 
         notFixedExternalTotalSupply += transferAmount + distributionAmount;
@@ -634,7 +670,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
                 amount >=
                     (((notFixedBalanceFrom * notFixedExternalTotalSupply) /
                         notFixedInternalTotalSupply) * 9) /
-                        10
+                        10,
+                notFixedInternalTotalSupply
             );
             distributionAmount = fees.distributeFee;
         } else {
@@ -920,7 +957,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         address _dexPairExilonWeth,
         address from,
         address to,
-        uint256 amount
+        uint256 amount,
+        uint256 notFixedInternalTotalSupply
     ) private returns (uint256 transferAmount, FeesInfo memory fees) {
         require(!isAddressInIncomingBlacklist[to], "Exilon: Address in income blacklist");
 
@@ -931,8 +969,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
         if (!_excludedFromPayingFees.contains(to)) {
             fees.burnFee = (amount * 3) / 100;
-            fees.distributeFee = amount / 100;
-            fees.lpFee = (amount * 8) / 100;
+
+            if (notFixedInternalTotalSupply == 0) {
+                fees.lpFee = (amount * 9) / 100;
+            } else {
+                fees.distributeFee = amount / 100;
+                fees.lpFee = (amount * 8) / 100;
+            }
         }
 
         uint256 additionalToLp;
@@ -951,33 +994,40 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         address _dexPairExilonWeth,
         address from,
         uint256 amount,
-        bool isSellingBig
+        bool isSellingBig,
+        uint256 notFixedInternalTotalSupply
     ) private returns (uint256 transferAmount, FeesInfo memory fees) {
         require(!isAddressInOutcomingBlacklist[from], "Exilon: Address in outcome blacklist");
 
         if (!_excludedFromPayingFees.contains(from)) {
             fees.burnFee = (3 * amount) / 100;
-            fees.distributeFee = amount / 100;
 
             uint256 timeFromStart = block.timestamp - _startTimestamp;
             if (timeFromStart < 30 minutes) {
                 if (isSellingBig) {
-                    fees.lpFee = (16 * amount) / 100;
+                    fees.lpFee = 16;
                 } else {
-                    fees.lpFee = (14 * amount) / 100;
+                    fees.lpFee = 14;
                 }
             } else if (timeFromStart < 60 minutes) {
                 if (isSellingBig) {
-                    fees.lpFee = (13 * amount) / 100;
+                    fees.lpFee = 13;
                 } else {
-                    fees.lpFee = (11 * amount) / 100;
+                    fees.lpFee = 11;
                 }
             } else {
                 if (isSellingBig) {
-                    fees.lpFee = (10 * amount) / 100;
+                    fees.lpFee = 10;
                 } else {
-                    fees.lpFee = (8 * amount) / 100;
+                    fees.lpFee = 8;
                 }
+            }
+
+            if (notFixedInternalTotalSupply == 0) {
+                fees.lpFee = ((fees.lpFee + 1) * amount) / 100;
+            } else {
+                fees.lpFee = (fees.lpFee * amount) / 100;
+                fees.distributeFee = amount / 100;
             }
         }
 
