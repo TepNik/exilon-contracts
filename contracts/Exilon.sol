@@ -51,6 +51,9 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     uint256 public wethLimitForLpFee = 2 ether;
     uint256 public feeAmountInUsd;
 
+    address public devAddress;
+    uint256 public devFee;
+
     mapping(address => bool) public isAddressInIncomingBlacklist;
     mapping(address => bool) public isAddressInOutcomingBlacklist;
 
@@ -397,6 +400,22 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         marketingAddress = newValue;
 
         emit ChangeMarketingAddress(oldValue, newValue);
+    }
+
+    function setDevParameters(address _devAddress, uint256 _devFee) external {
+        if (_devFee > 0) {
+            require(
+                _excludedFromDistribution.contains(_devAddress),
+                "Exilon: Dev address must be fixed"
+            );
+            require(
+                _devFee <= 100, // 1%
+                "Exilon: Fee too big"
+            );
+        }
+
+        devAddress = _devAddress;
+        devFee = _devFee;
     }
 
     function blacklistForIncoming(address addr) external onlyAdmin {
@@ -987,7 +1006,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             _distributeLpFee(from, fees.lpFee + additionalToLp, false, poolInfo);
         }
 
-        transferAmount = amount - fees.burnFee - fees.lpFee - fees.distributeFee;
+        uint256 _devFee = devFee;
+        if (_devFee > 0) {
+            _devFee = (_devFee * amount) / 10000;
+            _fixedBalances[devAddress] += _devFee;
+        }
+
+        transferAmount = amount - fees.burnFee - fees.lpFee - fees.distributeFee - _devFee;
     }
 
     function _makeSellAction(
@@ -1043,7 +1068,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
             _distributeLpFee(from, fees.lpFee + additionalToLp, false, poolInfo);
         }
 
-        transferAmount = amount - fees.burnFee - fees.lpFee - fees.distributeFee;
+        uint256 _devFee = devFee;
+        if (_devFee > 0) {
+            _devFee = (_devFee * amount) / 10000;
+            _fixedBalances[devAddress] += _devFee;
+        }
+
+        transferAmount = amount - fees.burnFee - fees.lpFee - fees.distributeFee - _devFee;
     }
 
     function _makeTransferAction(
