@@ -308,7 +308,10 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
 
     function includeToFeesDistribution(address user) external onlyWhenLiquidityAdded onlyAdmin {
         require(
-            user != address(0xdead) && user != dexPairExilonWeth && user != marketingAddress && user != devAddress,
+            user != address(0xdead) &&
+                user != dexPairExilonWeth &&
+                user != marketingAddress &&
+                user != devAddress,
             "Exilon: Wrong address"
         );
         require(_excludedFromDistribution.remove(user) == true, "Exilon: Already included");
