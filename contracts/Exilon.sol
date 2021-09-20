@@ -54,11 +54,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     address public devAddress;
     uint256 public devFee;
 
-    mapping(address => bool) public isAddressInIncomingBlacklist;
-    mapping(address => bool) public isAddressInOutcomingBlacklist;
-
-    bool public isPaused;
-
     // private data
 
     uint8 private constant _DECIMALS = 6;
@@ -125,14 +120,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     event ForceLpFeesDistribution();
 
     event LiquidityAdded(uint256 amount);
-
-    event BlacklistedForIncoming(address user);
-    event BlacklistedForOutcoming(address user);
-    event UnblacklistedForIncoming(address user);
-    event UnblacklistedForOutcoming(address user);
-
-    event TransfersPaused();
-    event TransfersUnpaused();
 
     /* FUNCTIONS */
 
@@ -421,48 +408,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         devFee = _devFee;
     }
 
-    function blacklistForIncoming(address addr) external onlyAdmin {
-        require(!isAddressInIncomingBlacklist[addr], "Exilon: Already income blacklisted");
-        isAddressInIncomingBlacklist[addr] = true;
-
-        emit BlacklistedForIncoming(addr);
-    }
-
-    function blacklistForOutcoming(address addr) external onlyAdmin {
-        require(!isAddressInOutcomingBlacklist[addr], "Exilon: Already outcome blacklisted");
-        isAddressInOutcomingBlacklist[addr] = true;
-
-        emit BlacklistedForOutcoming(addr);
-    }
-
-    function unblacklistForIncoming(address addr) external onlyAdmin {
-        require(isAddressInIncomingBlacklist[addr], "Exilon: Already income unblacklisted");
-        isAddressInIncomingBlacklist[addr] = false;
-
-        emit UnblacklistedForIncoming(addr);
-    }
-
-    function unblacklistForOutcoming(address addr) external onlyAdmin {
-        require(isAddressInOutcomingBlacklist[addr], "Exilon: Already outcome unblacklisted");
-        isAddressInOutcomingBlacklist[addr] = false;
-
-        emit UnblacklistedForOutcoming(addr);
-    }
-
-    function pauseTransfers() external onlyAdmin {
-        require(!isPaused, "Exilon: Already paused");
-        isPaused = true;
-
-        emit TransfersPaused();
-    }
-
-    function unpauseTransfers() external onlyAdmin {
-        require(isPaused, "Exilon: Already unpaused");
-        isPaused = false;
-
-        emit TransfersUnpaused();
-    }
-
     function name() external view virtual override returns (string memory) {
         return _NAME;
     }
@@ -546,7 +491,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         address to,
         uint256 amount
     ) private {
-        require(!isPaused, "Exion: Transfers is paused");
         bool isFromFixed = _excludedFromDistribution.contains(from);
         bool isToFixed = _excludedFromDistribution.contains(to);
 
@@ -982,8 +926,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         uint256 amount,
         uint256 notFixedInternalTotalSupply
     ) private returns (uint256 transferAmount, FeesInfo memory fees) {
-        require(!isAddressInIncomingBlacklist[to], "Exilon: Address in income blacklist");
-
         PoolInfo memory poolInfo;
         poolInfo.dexPair = _dexPairExilonWeth;
         poolInfo.weth = _weth;
@@ -1025,8 +967,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         bool isSellingBig,
         uint256 notFixedInternalTotalSupply
     ) private returns (uint256 transferAmount, FeesInfo memory fees) {
-        require(!isAddressInOutcomingBlacklist[from], "Exilon: Address in outcome blacklist");
-
         if (!_excludedFromPayingFees.contains(from)) {
             fees.burnFee = (3 * amount) / 100;
 
@@ -1086,12 +1026,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         address to,
         uint256 amount
     ) private returns (uint256 transferAmount, uint256 feeAmount) {
-        require(
-            !isAddressInOutcomingBlacklist[from],
-            "Exilon: Address `from` in outcome blacklist"
-        );
-        require(!isAddressInIncomingBlacklist[to], "Exilon: Address `to` in income blacklist");
-
         if (_excludedFromPayingFees.contains(from) || _excludedFromPayingFees.contains(to)) {
             return (amount, 0);
         }
