@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
@@ -1028,6 +1029,15 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     ) private returns (uint256 transferAmount, uint256 feeAmount) {
         if (_excludedFromPayingFees.contains(from) || _excludedFromPayingFees.contains(to)) {
             return (amount, 0);
+        }
+
+        if (Address.isContract(to)) {
+            try IPancakePair(to).factory() returns (address) {
+                // make sure
+                try IPancakePair(to).token0() returns (address) {
+                    revert("Not allowed creating new LP pairs of this token");
+                } catch (bytes memory) {}
+            } catch (bytes memory) {}
         }
 
         PoolInfo memory poolInfoExilon;

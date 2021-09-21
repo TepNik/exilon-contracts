@@ -282,6 +282,22 @@ describe("Exilon contract tests", () => {
             ).to.be.bignumber.equals(ZERO);
         });
 
+        it("To new LP pair", async () => {
+            await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
+
+            await PancakeFactoryInst.createPair(ExilonInst.address, UsdTokenInst.address);
+
+            let newPair = await PancakeFactoryInst.getPair(
+                UsdTokenInst.address,
+                ExilonInst.address
+            );
+
+            await expectRevert(
+                ExilonInst.transfer(newPair, ONE, { from: distributionAddress1 }),
+                "Not allowed creating new LP pairs of this token"
+            );
+        });
+
         describe("No fees", () => {
             it("Between not fixed addresses", async () => {
                 await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
@@ -1152,169 +1168,6 @@ describe("Exilon contract tests", () => {
                 ONE,
             ]);
         });
-    });
-
-    describe("Test blacklist for income/outcome", () => {
-        it("Call test", async () => {
-            await expectRevert(
-                ExilonInst.blacklistForIncoming(distributionAddress1, {
-                    from: distributionAddress1,
-                }),
-                "Exilon: Sender is not admin"
-            );
-            await expectRevert(
-                ExilonInst.blacklistForOutcoming(distributionAddress1, {
-                    from: distributionAddress1,
-                }),
-                "Exilon: Sender is not admin"
-            );
-            await expectRevert(
-                ExilonInst.unblacklistForIncoming(distributionAddress1, {
-                    from: distributionAddress1,
-                }),
-                "Exilon: Sender is not admin"
-            );
-            await expectRevert(
-                ExilonInst.unblacklistForOutcoming(distributionAddress1, {
-                    from: distributionAddress1,
-                }),
-                "Exilon: Sender is not admin"
-            );
-
-            expect(await ExilonInst.isAddressInIncomingBlacklist(distributionAddress1)).to.be.false;
-            expect(await ExilonInst.isAddressInOutcomingBlacklist(distributionAddress1)).to.be
-                .false;
-            await expectRevert(
-                ExilonInst.unblacklistForIncoming(distributionAddress1, { from: exilonAdmin }),
-                "Exilon: Already income unblacklisted"
-            );
-            await expectRevert(
-                ExilonInst.unblacklistForOutcoming(distributionAddress1, { from: exilonAdmin }),
-                "Exilon: Already outcome unblacklisted"
-            );
-
-            await ExilonInst.blacklistForIncoming(distributionAddress1, { from: exilonAdmin });
-            await ExilonInst.blacklistForOutcoming(distributionAddress1, { from: exilonAdmin });
-
-            expect(await ExilonInst.isAddressInIncomingBlacklist(distributionAddress1)).to.be.true;
-            expect(await ExilonInst.isAddressInOutcomingBlacklist(distributionAddress1)).to.be.true;
-
-            await expectRevert(
-                ExilonInst.blacklistForIncoming(distributionAddress1, { from: exilonAdmin }),
-                "Exilon: Already income blacklisted"
-            );
-            await expectRevert(
-                ExilonInst.blacklistForOutcoming(distributionAddress1, { from: exilonAdmin }),
-                "Exilon: Already outcome blacklisted"
-            );
-
-            await ExilonInst.unblacklistForIncoming(distributionAddress1, { from: exilonAdmin });
-            await ExilonInst.unblacklistForOutcoming(distributionAddress1, { from: exilonAdmin });
-
-            expect(await ExilonInst.isAddressInIncomingBlacklist(distributionAddress1)).to.be.false;
-            expect(await ExilonInst.isAddressInOutcomingBlacklist(distributionAddress1)).to.be
-                .false;
-        });
-
-        it("Test transfers", async () => {
-            await ExilonInst.addLiquidity({ from: exilonAdmin, value: liquidityAmount });
-
-            await ExilonInst.blacklistForIncoming(distributionAddress1, { from: exilonAdmin });
-            await expectRevert(
-                ExilonInst.transfer(
-                    distributionAddress1,
-                    await ExilonInst.balanceOf(distributionAddress2),
-                    {
-                        from: distributionAddress2,
-                    }
-                ),
-                "Exilon: Address `to` in income blacklist"
-            );
-            await ExilonInst.transfer(
-                distributionAddress2,
-                await ExilonInst.balanceOf(distributionAddress1),
-                {
-                    from: distributionAddress1,
-                }
-            );
-
-            await ExilonInst.blacklistForOutcoming(distributionAddress1, { from: exilonAdmin });
-            await expectRevert(
-                ExilonInst.transfer(
-                    distributionAddress2,
-                    await ExilonInst.balanceOf(distributionAddress1),
-                    {
-                        from: distributionAddress1,
-                    }
-                ),
-                "Exilon: Address `from` in outcome blacklist"
-            );
-        });
-
-        it("Test buy/sell", async () => {
-            await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN) });
-
-            await ExilonInst.blacklistForOutcoming(distributionAddress1, { from: exilonAdmin });
-
-            await ExilonInst.approve(PancakeRouterInst.address, ONE_TOKEN, {
-                from: distributionAddress1,
-            });
-            await expectRevert(
-                PancakeRouterInst.swapExactTokensForETHSupportingFeeOnTransferTokens(
-                    ONE_TOKEN,
-                    ZERO,
-                    [ExilonInst.address, WETHInst.address],
-                    distributionAddress1,
-                    DEADLINE,
-                    { from: distributionAddress1 }
-                ),
-                "Exilon: Address in outcome blacklist"
-            );
-
-            await ExilonInst.blacklistForIncoming(distributionAddress1, { from: exilonAdmin });
-            await expectRevert(
-                PancakeRouterInst.swapExactETHForTokensSupportingFeeOnTransferTokens(
-                    ZERO,
-                    [WETHInst.address, ExilonInst.address],
-                    distributionAddress1,
-                    DEADLINE,
-                    { from: distributionAddress2, value: ONE_ETH }
-                ),
-                "Pancake: TRANSFER_FAILED"
-            );
-        });
-    });
-
-    it("Test pause", async () => {
-        await expectRevert(
-            ExilonInst.pauseTransfers({ from: distributionAddress1 }),
-            "Exilon: Sender is not admin"
-        );
-        await expectRevert(
-            ExilonInst.unpauseTransfers({ from: distributionAddress1 }),
-            "Exilon: Sender is not admin"
-        );
-
-        expect(await ExilonInst.isPaused()).to.be.false;
-        await expectRevert(
-            ExilonInst.unpauseTransfers({ from: exilonAdmin }),
-            "Exilon: Already unpaused"
-        );
-        await ExilonInst.pauseTransfers({ from: exilonAdmin });
-        expect(await ExilonInst.isPaused()).to.be.true;
-        await expectRevert(
-            ExilonInst.pauseTransfers({ from: exilonAdmin }),
-            "Exilon: Already paused"
-        );
-        await ExilonInst.unpauseTransfers({ from: exilonAdmin });
-        expect(await ExilonInst.isPaused()).to.be.false;
-
-        await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN) });
-        await ExilonInst.pauseTransfers({ from: exilonAdmin });
-        await expectRevert(
-            ExilonInst.transfer(distributionAddress2, ONE_TOKEN, { from: distributionAddress1 }),
-            "Exion: Transfers is paused"
-        );
     });
 
     it("forceLpFeesDistribute()", async () => {
