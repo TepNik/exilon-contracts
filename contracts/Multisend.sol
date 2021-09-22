@@ -2,19 +2,9 @@
 
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract Multisend is AccessControl {
-    modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "Exilon: Sender is not admin");
-        _;
-    }
-
-    constructor() {
-        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
-    }
-
+contract Multisend {
     function multisendEth(address[] calldata users) external payable {
         require(msg.value > 0, "Multisend: No value");
         require(users.length > 0, "Multisend: No users");

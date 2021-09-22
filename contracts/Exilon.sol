@@ -17,7 +17,9 @@ import "./pancake-swap/interfaces/IWETH.sol";
 
 import "./WethReceiver.sol";
 
-contract Exilon is IERC20, IERC20Metadata, AccessControl {
+import "./interfaces/IExilon.sol";
+
+contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     struct FeesInfo {
@@ -207,7 +209,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
     /* EXTERNAL FUNCTIONS */
 
     // this function will be used
-    function addLiquidity() external payable onlyAdmin {
+    function addLiquidity() external payable override onlyAdmin {
         require(_isLpAdded == 0, "Exilon: Only once");
         _isLpAdded = 1;
 
@@ -261,7 +263,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         return true;
     }
 
-    function forceLpFeesDistribute() external onlyWhenLiquidityAdded onlyAdmin {
+    function forceLpFeesDistribute() external override onlyWhenLiquidityAdded onlyAdmin {
         PoolInfo memory poolInfo;
         poolInfo.dexPair = dexPairExilonWeth;
         poolInfo.weth = _weth;
@@ -270,7 +272,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         emit ForceLpFeesDistribution();
     }
 
-    function excludeFromFeesDistribution(address user) external onlyWhenLiquidityAdded onlyAdmin {
+    function excludeFromFeesDistribution(address user) external override onlyWhenLiquidityAdded onlyAdmin {
         require(_excludedFromDistribution.add(user) == true, "Exilon: Already excluded");
 
         uint256 notFixedUserBalance = _notFixedBalances[user];
@@ -294,7 +296,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         emit ExcludedFromFeesDistribution(user);
     }
 
-    function includeToFeesDistribution(address user) external onlyWhenLiquidityAdded onlyAdmin {
+    function includeToFeesDistribution(address user) external override onlyWhenLiquidityAdded onlyAdmin {
         require(
             user != address(0xdead) &&
                 user != dexPairExilonWeth &&
@@ -340,21 +342,21 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         emit IncludedToFeesDistribution(user);
     }
 
-    function excludeFromPayingFees(address user) external onlyAdmin {
+    function excludeFromPayingFees(address user) external override onlyAdmin {
         require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
         require(_excludedFromPayingFees.add(user) == true, "Exilon: Already excluded");
 
         emit ExcludedFromPayingFees(user);
     }
 
-    function includeToPayingFees(address user) external onlyAdmin {
+    function includeToPayingFees(address user) external override onlyAdmin {
         require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
         require(_excludedFromPayingFees.remove(user) == true, "Exilon: Already included");
 
         emit IncludedToPayingFees(user);
     }
 
-    function setWethLimitForLpFee(uint256 newValue) external onlyAdmin {
+    function setWethLimitForLpFee(uint256 newValue) external override onlyAdmin {
         require(newValue <= 10 ether, "Exilon: Too big value");
         uint256 oldValue = wethLimitForLpFee;
         wethLimitForLpFee = newValue;
@@ -362,7 +364,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         emit ChangeWethLimitForLpFee(oldValue, newValue);
     }
 
-    function setDefaultLpMintAddress(address newValue) external onlyAdmin {
+    function setDefaultLpMintAddress(address newValue) external override onlyAdmin {
         address oldValue = defaultLpMintAddress;
         defaultLpMintAddress = newValue;
 
@@ -374,7 +376,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         wethReceiver = value;
     }
 
-    function setFeeAmountInUsd(uint256 newValue) external onlyAdmin {
+    function setFeeAmountInUsd(uint256 newValue) external override onlyAdmin {
         require(newValue <= _MAX_FEE_AMOUNT_IN_USD_FOR_TRANSFERS, "Exilon: Too big value");
         uint256 oldValue = feeAmountInUsd;
         feeAmountInUsd = newValue;
@@ -382,7 +384,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl {
         emit ChangeSetFeeAmountInUsd(oldValue, newValue);
     }
 
-    function setMarketingAddress(address newValue) external onlyAdmin {
+    function setMarketingAddress(address newValue) external override onlyAdmin {
         require(
             _excludedFromDistribution.contains(newValue),
             "Exilon: Marketing address must be fixed"
