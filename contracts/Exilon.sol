@@ -19,6 +19,10 @@ import "./WethReceiver.sol";
 
 import "./interfaces/IExilon.sol";
 
+// Maded by TepNik
+// https://github.com/TepNik/exilon-contracts
+// https://www.linkedin.com/in/nikita-tepelin/
+
 contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -54,8 +58,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     uint256 public wethLimitForLpFee = 2 ether;
     uint256 public feeAmountInUsd;
 
-    address public devAddress;
-    uint256 public devFee;
+    address public reserveFeeAddress;
+    uint256 public reserveFee;
 
     // private data
 
@@ -301,7 +305,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             user != address(0xdead) &&
                 user != dexPairExilonWeth &&
                 user != marketingAddress &&
-                user != devAddress,
+                user != reserveFeeAddress,
             "Exilon: Wrong address"
         );
         require(_excludedFromDistribution.remove(user) == true, "Exilon: Already included");
@@ -395,20 +399,20 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         emit ChangeMarketingAddress(oldValue, newValue);
     }
 
-    function setDevParameters(address _devAddress, uint256 _devFee) external {
-        if (_devFee > 0) {
+    function setReserveFeeParameters(address _reserveFeeAddress, uint256 _reserveFee) external {
+        if (_reserveFee > 0) {
             require(
-                _excludedFromDistribution.contains(_devAddress),
-                "Exilon: Dev address must be fixed"
+                _excludedFromDistribution.contains(_reserveFeeAddress),
+                "Exilon: Reserve fee address must be fixed"
             );
             require(
-                _devFee <= 100, // 1%
+                _reserveFee <= 100, // 1%
                 "Exilon: Fee too big"
             );
         }
 
-        devAddress = _devAddress;
-        devFee = _devFee;
+        reserveFeeAddress = _reserveFeeAddress;
+        reserveFee = _reserveFee;
     }
 
     function name() external view virtual override returns (string memory) {
@@ -954,13 +958,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             _distributeLpFee(from, fees.lpFee + additionalToLp, false, poolInfo);
         }
 
-        uint256 _devFee = devFee;
-        if (_devFee > 0) {
-            _devFee = (_devFee * amount) / 10000;
-            _fixedBalances[devAddress] += _devFee;
+        uint256 _reserveFee = reserveFee;
+        if (_reserveFee > 0) {
+            _reserveFee = (_reserveFee * amount) / 10000;
+            _fixedBalances[reserveFeeAddress] += _reserveFee;
         }
 
-        transferAmount = amount - fees.burnFee - fees.lpFee - fees.distributeFee - _devFee;
+        transferAmount = amount - fees.burnFee - fees.lpFee - fees.distributeFee - _reserveFee;
     }
 
     function _makeSellAction(
@@ -1014,13 +1018,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             _distributeLpFee(from, fees.lpFee + additionalToLp, false, poolInfo);
         }
 
-        uint256 _devFee = devFee;
-        if (_devFee > 0) {
-            _devFee = (_devFee * amount) / 10000;
-            _fixedBalances[devAddress] += _devFee;
+        uint256 _reserveFee = reserveFee;
+        if (_reserveFee > 0) {
+            _reserveFee = (_reserveFee * amount) / 10000;
+            _fixedBalances[reserveFeeAddress] += _reserveFee;
         }
 
-        transferAmount = amount - fees.burnFee - fees.lpFee - fees.distributeFee - _devFee;
+        transferAmount = amount - fees.burnFee - fees.lpFee - fees.distributeFee - _reserveFee;
     }
 
     function _makeTransferAction(
