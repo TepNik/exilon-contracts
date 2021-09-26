@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./interfaces/IExilon.sol";
 
 contract ExilonAdmin is AccessControl {
-    address immutable public exilonToken;
+    address public immutable exilonToken;
 
     modifier onlyAdmin() {
         require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "Exilon: Sender is not admin");
@@ -21,7 +21,7 @@ contract ExilonAdmin is AccessControl {
     }
 
     function addLiquidity() external payable onlyAdmin {
-        IExilon(exilonToken).addLiquidity{ value: msg.value }();
+        IExilon(exilonToken).addLiquidity{value: msg.value}();
     }
 
     function forceLpFeesDistribute() external onlyAdmin {

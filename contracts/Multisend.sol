@@ -12,7 +12,7 @@ contract Multisend {
         uint256 totalValue = msg.value;
         uint256 restAmount = totalValue;
         uint256 len = users.length;
-        for(uint256 i = 0; i < len; ++i) {
+        for (uint256 i = 0; i < len; ++i) {
             uint256 amountToUser;
             if (i < len - 1) {
                 amountToUser = totalValue / len;
@@ -21,19 +21,23 @@ contract Multisend {
                 amountToUser = restAmount;
             }
 
-            (bool success, ) = users[i].call{ value: amountToUser }("");
+            (bool success, ) = users[i].call{value: amountToUser}("");
             require(success, "Multisend: Eth send if failed");
         }
     }
 
-    function multisendToken(address token, address[] calldata users, uint256 amount) external {
+    function multisendToken(
+        address token,
+        address[] calldata users,
+        uint256 amount
+    ) external {
         require(amount > 0, "Multisend: No value");
         require(users.length > 0, "Multisend: No users");
 
         uint256 totalValue = amount;
         uint256 restAmount = totalValue;
         uint256 len = users.length;
-        for(uint256 i = 0; i < len; ++i) {
+        for (uint256 i = 0; i < len; ++i) {
             uint256 amountToUser;
             if (i < len - 1) {
                 amountToUser = totalValue / len;

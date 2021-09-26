@@ -8,9 +8,11 @@ interface IExilon {
     function forceLpFeesDistribute() external;
 
     function excludeFromFeesDistribution(address user) external;
+
     function includeToFeesDistribution(address user) external;
 
     function excludeFromPayingFees(address user) external;
+
     function includeToPayingFees(address user) external;
 
     function setWethLimitForLpFee(uint256 newValue) external;

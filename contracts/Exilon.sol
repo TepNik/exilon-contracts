@@ -107,7 +107,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     }
 
     modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()), "Exilon: Sender is not admin");
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Exilon: Sender is not admin");
         _;
     }
 
@@ -160,7 +160,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         defaultLpMintAddress = _defaultLpMintAddress;
         marketingAddress = _marketingAddress;
 
-        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         // add LP pair and burn address to excludedFromDistribution
         _excludedFromDistribution.add(_dexPairExilonWeth);
@@ -207,12 +207,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         emit Transfer(address(0), address(this), _INITIAL_AMOUNT_TO_LIQUIDITY);
     }
 
-    /* receive() external payable {
-    } */
-
     /* EXTERNAL FUNCTIONS */
 
-    // this function will be used
     function addLiquidity() external payable override onlyAdmin {
         require(_isLpAdded == 0, "Exilon: Only once");
         _isLpAdded = 1;
@@ -238,7 +234,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     }
 
     function approve(address spender, uint256 amount) external virtual override returns (bool) {
-        _approve(_msgSender(), spender, amount);
+        _approve(msg.sender, spender, amount);
         return true;
     }
 
@@ -249,7 +245,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         onlyWhenLiquidityAdded
         returns (bool)
     {
-        _transfer(_msgSender(), recipient, amount);
+        _transfer(msg.sender, recipient, amount);
         return true;
     }
 
@@ -258,9 +254,9 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         address recipient,
         uint256 amount
     ) external virtual override onlyWhenLiquidityAdded returns (bool) {
-        uint256 currentAllowance = _allowances[sender][_msgSender()];
+        uint256 currentAllowance = _allowances[sender][msg.sender];
         require(currentAllowance >= amount, "Exilon: Amount exceeds allowance");
-        _approve(sender, _msgSender(), currentAllowance - amount);
+        _approve(sender, msg.sender, currentAllowance - amount);
 
         _transfer(sender, recipient, amount);
 
@@ -276,7 +272,38 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         emit ForceLpFeesDistribution();
     }
 
-    function excludeFromFeesDistribution(address user) external override onlyWhenLiquidityAdded onlyAdmin {
+    function distributeTokens(uint256 amount) external {
+        uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
+        require(notFixedExternalTotalSupply != 0, "Exilon: Distribution to nobody");
+
+        if (_excludedFromDistribution.contains(msg.sender)) {
+            uint256 fixedUserBalance = _fixedBalances[msg.sender];
+            require(fixedUserBalance >= amount, "Exilon: Not enough balance");
+
+            _notFixedBalances[msg.sender] = fixedUserBalance - amount;
+            _notFixedExternalTotalSupply = notFixedExternalTotalSupply + amount;
+        } else {
+            uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
+
+            uint256 notFixedUserBalance = _notFixedBalances[msg.sender];
+            uint256 fixedUserBalance = (notFixedExternalTotalSupply * notFixedUserBalance) /
+                notFixedInternalTotalSupply;
+            require(fixedUserBalance >= amount, "Exilon: Not enough balance");
+
+            uint256 notFixedDistributeAmount = (amount * notFixedInternalTotalSupply) /
+                notFixedExternalTotalSupply;
+
+            _notFixedBalances[msg.sender] = notFixedUserBalance - notFixedDistributeAmount;
+            _notFixedInternalTotalSupply = notFixedInternalTotalSupply - notFixedDistributeAmount;
+        }
+    }
+
+    function excludeFromFeesDistribution(address user)
+        external
+        override
+        onlyWhenLiquidityAdded
+        onlyAdmin
+    {
         require(_excludedFromDistribution.add(user) == true, "Exilon: Already excluded");
 
         uint256 notFixedUserBalance = _notFixedBalances[user];
@@ -300,7 +327,12 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         emit ExcludedFromFeesDistribution(user);
     }
 
-    function includeToFeesDistribution(address user) external override onlyWhenLiquidityAdded onlyAdmin {
+    function includeToFeesDistribution(address user)
+        external
+        override
+        onlyWhenLiquidityAdded
+        onlyAdmin
+    {
         require(
             user != address(0xdead) &&
                 user != dexPairExilonWeth &&
