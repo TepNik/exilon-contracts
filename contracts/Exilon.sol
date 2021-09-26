@@ -128,6 +128,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
 
     event LiquidityAdded(uint256 amount);
 
+    event TokenDistribution(uint256 amount);
+
     /* FUNCTIONS */
 
     constructor(
@@ -296,6 +298,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             _notFixedBalances[msg.sender] = notFixedUserBalance - notFixedDistributeAmount;
             _notFixedInternalTotalSupply = notFixedInternalTotalSupply - notFixedDistributeAmount;
         }
+
+        emit TokenDistribution(amount);
     }
 
     function excludeFromFeesDistribution(address user)
