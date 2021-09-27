@@ -30,7 +30,7 @@ module.exports = async function (deployer, network) {
     }
 
     let defaultAdminRole = await ExilonInst.DEFAULT_ADMIN_ROLE();
-    if (await ExilonInst.hasRole(defaultAdminRole, ExilonAdminInst.address)) {
+    if (!(await ExilonInst.hasRole(defaultAdminRole, ExilonAdminInst.address))) {
         console.log("Connecting Exilon and ExilonAdmin");
         await ExilonInst.grantRole(defaultAdminRole, ExilonAdminInst.address);
     }

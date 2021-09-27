@@ -8,8 +8,8 @@ module.exports = async function (deployer, network) {
         return;
     }
 
-    await deployer.deploy(Multisend, { gas: MULTISEND_DEPLOY_GASLIMIT });
+    /* await deployer.deploy(Multisend, { gas: MULTISEND_DEPLOY_GASLIMIT });
     let MultisendInst = await Multisend.deployed();
 
-    console.log("Multisend =", MultisendInst.address);
+    console.log("Multisend =", MultisendInst.address); */
 };
