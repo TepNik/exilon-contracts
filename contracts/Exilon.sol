@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -56,7 +56,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
 
     uint256 public feeAmountInTokens;
     uint256 public wethLimitForLpFee = 2 ether;
-    uint256 public feeAmountInUsd;
+    uint256 public immutable feeAmountInUsd;
 
     address public reserveFeeAddress;
     uint256 public reserveFee;
@@ -81,8 +81,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     // must fit into uint256
     uint256 private constant _MAX_INTERNAL_SUPPLY = type(uint256).max / _TOTAL_EXTERNAL_SUPPLY;
     uint256 private constant _INITIAL_AMOUNT_TO_LIQUIDITY = (_TOTAL_EXTERNAL_SUPPLY * 65) / 100;
-
-    uint256 private immutable _MAX_FEE_AMOUNT_IN_USD_FOR_TRANSFERS;
 
     // _notFixedInternalTotalSupply * _notFixedExternalTotalSupply <= type(uint256).max
     uint256 private _notFixedExternalTotalSupply;
@@ -121,7 +119,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
 
     event ChangeWethLimitForLpFee(uint256 oldValue, uint256 newValue);
     event ChangeDefaultLpMintAddress(address indexed oldValue, address indexed newValue);
-    event ChangeSetFeeAmountInUsd(uint256 oldValue, uint256 newValue);
     event ChangeMarketingAddress(address oldValue, address newValue);
 
     event ForceLpFeesDistribution();
@@ -150,9 +147,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
 
         {
             usdAddress = _usdAddress;
-            uint256 oneUsd = 10**IERC20Metadata(_usdAddress).decimals();
-            feeAmountInUsd = oneUsd;
-            _MAX_FEE_AMOUNT_IN_USD_FOR_TRANSFERS = 10 * oneUsd;
+            feeAmountInUsd = 10**IERC20Metadata(_usdAddress).decimals();
 
             address _dexPairUsdWeth = dexFactory.getPair(weth, _usdAddress);
             require(_dexPairUsdWeth != address(0), "Exilon: Wrong usd token");
@@ -414,14 +409,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     function setWethReceiver(address value) external onlyAdmin {
         require(wethReceiver == address(0) && value != address(0), "Exilon: Only once");
         wethReceiver = value;
-    }
-
-    function setFeeAmountInUsd(uint256 newValue) external override onlyAdmin {
-        require(newValue <= _MAX_FEE_AMOUNT_IN_USD_FOR_TRANSFERS, "Exilon: Too big value");
-        uint256 oldValue = feeAmountInUsd;
-        feeAmountInUsd = newValue;
-
-        emit ChangeSetFeeAmountInUsd(oldValue, newValue);
     }
 
     function setMarketingAddress(address newValue) external override onlyAdmin {
@@ -882,39 +869,21 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     {
         uint256 blocknumber = block.number - _startBlock;
 
-        // [0; 120) - 0.1 BNB
-        // [120; 240) - 0.2 BNB
-        // [240; 360) - 0.3 BNB
-        // [360; 420) - 0.4 BNB
-        // [420; 480) - 0.5 BNB
-        // [480; 540) - 0.6 BNB
-        // [540; 600) - 0.7 BNB
-        // [600; 660) - 0.8 BNB
-        // [660; 720) - 0.9 BNB
-        // [720; 780) - 1 BNB
-        // [780; +inf) - unlimited
+        // [0; 60) - 0.1 BNB
+        // [60; 120) - 0.3 BNB
+        // [120; 180) - 0.5 BNB
+        // [180; 240) - 0.7 BNB
+        // [240; +inf) - unlimited
 
-        if (blocknumber < 780) {
-            if (blocknumber < 120) {
+        if (blocknumber < 240) {
+            if (blocknumber < 60) {
                 return _checkBuyAmountCeil(poolInfo, 1 ether / 10);
-            } else if (blocknumber < 240) {
-                return _checkBuyAmountCeil(poolInfo, 2 ether / 10);
-            } else if (blocknumber < 360) {
+            } else if (blocknumber < 120) {
                 return _checkBuyAmountCeil(poolInfo, 3 ether / 10);
-            } else if (blocknumber < 420) {
-                return _checkBuyAmountCeil(poolInfo, 4 ether / 10);
-            } else if (blocknumber < 480) {
+            } else if (blocknumber < 180) {
                 return _checkBuyAmountCeil(poolInfo, 5 ether / 10);
-            } else if (blocknumber < 540) {
-                return _checkBuyAmountCeil(poolInfo, 6 ether / 10);
-            } else if (blocknumber < 600) {
-                return _checkBuyAmountCeil(poolInfo, 7 ether / 10);
-            } else if (blocknumber < 660) {
-                return _checkBuyAmountCeil(poolInfo, 8 ether / 10);
-            } else if (blocknumber < 720) {
-                return _checkBuyAmountCeil(poolInfo, 9 ether / 10);
             } else {
-                return _checkBuyAmountCeil(poolInfo, 1 ether);
+                return _checkBuyAmountCeil(poolInfo, 7 ether / 10);
             }
         }
 

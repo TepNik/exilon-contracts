@@ -19,7 +19,5 @@ interface IExilon {
 
     function setDefaultLpMintAddress(address newValue) external;
 
-    function setFeeAmountInUsd(uint256 newValue) external;
-
     function setMarketingAddress(address newValue) external;
 }

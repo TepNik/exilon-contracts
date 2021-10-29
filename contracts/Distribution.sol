@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
@@ -52,7 +52,11 @@ contract Distribution is AccessControl, ReentrancyGuard {
         require(_token.transfer(user, amount), "Distribution: Transfer");
     }
 
-    function withdrawRandomToken(address randomToken,address user, uint256 amount) external onlyAdmin nonReentrant {
+    function withdrawRandomToken(
+        address randomToken,
+        address user,
+        uint256 amount
+    ) external onlyAdmin nonReentrant {
         IERC20 _token = IERC20(randomToken);
         require(address(_token) != address(0), "Distribution: init");
         if (amount == 0) {

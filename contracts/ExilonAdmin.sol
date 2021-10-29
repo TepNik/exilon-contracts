@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity 0.8.9;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
@@ -50,10 +50,6 @@ contract ExilonAdmin is AccessControl {
 
     function setDefaultLpMintAddress(address newValue) external onlyAdmin {
         IExilon(exilonToken).setDefaultLpMintAddress(newValue);
-    }
-
-    function setFeeAmountInUsd(uint256 newValue) external onlyAdmin {
-        IExilon(exilonToken).setFeeAmountInUsd(newValue);
     }
 
     function setMarketingAddress(address newValue) external onlyAdmin {

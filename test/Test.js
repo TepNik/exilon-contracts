@@ -14,6 +14,7 @@ const { randomBytes } = require("crypto");
 require("dotenv").config();
 const {} = process.env;
 
+// set 'true' if want to see gas usage
 let testsWithOutput = false;
 
 const MINUS_ONE = new BN(-1);
@@ -44,19 +45,9 @@ const TOTAL_SUPPLY = new BN("7000000000000").mul(ONE_TOKEN);
 
 const AMOUNT_TO_LIQUIDITY = new BN("65");
 
-const STEP_AMOUNT = ONE_ETH.div(TEN);
-const STEP_DELTA_BLOCK = [
-    new BN(120),
-    new BN(120),
-    new BN(120),
-    new BN(60),
-    new BN(60),
-    new BN(60),
-    new BN(60),
-    new BN(60),
-    new BN(60),
-    new BN(60),
-];
+const FIRST_AMOUNT = ONE_ETH.div(TEN);
+const STEP_AMOUNT = ONE_ETH.div(TEN).mul(TWO);
+const STEP_DELTA_BLOCK = [new BN(60), new BN(60), new BN(60), new BN(60)];
 
 const usdTokenLiquidity = ONE_ETH.mul(TEN).mul(TEN).mul(TEN);
 const usdWethLiquidity = ONE_ETH.mul(TEN).mul(TEN).mul(TEN).mul(TEN);
@@ -729,7 +720,7 @@ describe("Exilon contract tests", () => {
                     ZERO,
                 ]);
 
-                await time.advanceBlockTo(blocknumber.add(new BN("1650")));
+                await time.advanceBlockTo(blocknumber.add(new BN("240")));
 
                 await checkRemoveLiquidity(
                     accountFrom,
@@ -771,7 +762,7 @@ describe("Exilon contract tests", () => {
                     ZERO,
                 ]);
 
-                await time.advanceBlockTo(blocknumber.add(new BN("1650")));
+                await time.advanceBlockTo(blocknumber.add(new BN("240")));
 
                 await checkRemoveLiquidity(
                     accountFrom,
@@ -897,7 +888,7 @@ describe("Exilon contract tests", () => {
             expect(feeAmountAfter).to.be.bignumber.above(feeAmountBefore);
             expect(feeAmountAfter).not.to.be.bignumber.equals(ZERO);
 
-            await time.advanceBlockTo(blocknumber.add(new BN("780")));
+            await time.advanceBlockTo(blocknumber.add(new BN("240")));
 
             // selling
             feeAmountBefore = await ExilonInst.feeAmountInTokens();
@@ -930,7 +921,7 @@ describe("Exilon contract tests", () => {
                 await makeFixedAddress(distributionAddress7);
                 await makeFixedAddress(distributionAddress8);
 
-                await time.advanceBlockTo(blocknumber.add(new BN("780")));
+                await time.advanceBlockTo(blocknumber.add(new BN("240")));
                 await time.increaseTo(timestamp.add(time.duration.minutes(60)));
 
                 await checkAddLiquidityWithLpDistribution(
@@ -978,7 +969,7 @@ describe("Exilon contract tests", () => {
                 await makeFixedAddress(distributionAddress7);
                 await makeFixedAddress(distributionAddress8);
 
-                await time.advanceBlockTo(blocknumber.add(new BN("780")));
+                await time.advanceBlockTo(blocknumber.add(new BN("240")));
                 await time.increaseTo(timestamp.add(time.duration.minutes(60)));
 
                 await checkAddLiquidityWithLpDistribution(
@@ -1083,7 +1074,7 @@ describe("Exilon contract tests", () => {
             });
             await ExilonInst.includeToPayingFees(defaultLpMintAddress, { from: exilonAdmin });
 
-            await time.advanceBlockTo(blocknumber.add(new BN("780")));
+            await time.advanceBlockTo(blocknumber.add(new BN("240")));
             await time.increaseTo(timestamp.add(time.duration.minutes(60)));
 
             await checkBuy(defaultLpMintAddress, ONE_ETH.mul(TEN).mul(TEN).mul(TEN), [
@@ -1159,7 +1150,7 @@ describe("Exilon contract tests", () => {
             });
             await ExilonInst.includeToPayingFees(defaultLpMintAddress, { from: exilonAdmin });
 
-            await time.advanceBlockTo(blocknumber.add(new BN("780")));
+            await time.advanceBlockTo(blocknumber.add(new BN("240")));
             await time.increaseTo(timestamp.add(time.duration.minutes(60)));
 
             await checkBuy(defaultLpMintAddress, ONE_ETH.mul(TEN).mul(TEN).mul(TEN), [
@@ -1179,7 +1170,7 @@ describe("Exilon contract tests", () => {
             "Exilon: Sender is not admin"
         );
 
-        await time.advanceBlockTo(blocknumber.add(new BN("780")));
+        await time.advanceBlockTo(blocknumber.add(new BN("240")));
 
         let lpTotalSupplyBefore = await ExilonDexPairInst.totalSupply();
         await PancakeRouterInst.swapExactETHForTokens(
@@ -1320,20 +1311,6 @@ describe("Exilon contract tests", () => {
         expect(await ExilonInst.excludedFromPayingFeesLen()).to.be.bignumber.equals(ZERO);
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress1)).to.be.false;
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress2)).to.be.false;
-    });
-
-    it("feeAmountInUsd check", async () => {
-        let oneDollar = TEN.pow(await UsdTokenInst.decimals());
-        expect(await ExilonInst.feeAmountInUsd()).to.be.bignumber.equals(oneDollar);
-
-        await expectRevert(
-            ExilonInst.setFeeAmountInUsd(oneDollar, { from: distributionAddress1 }),
-            "Exilon: Sender is not admin"
-        );
-
-        let newValue = oneDollar.div(TWO);
-        await ExilonInst.setFeeAmountInUsd(newValue, { from: exilonAdmin });
-        expect(await ExilonInst.feeAmountInUsd()).to.be.bignumber.equals(newValue);
     });
 
     it("marketing address check", async () => {
@@ -2228,7 +2205,7 @@ function restrictionsOnStart(blockDelta) {
     let blockNow = ZERO;
     for (let i = 0; i < STEP_DELTA_BLOCK.length; ++i) {
         if (blockDelta.gte(blockNow) && blockDelta.lt(blockNow.add(STEP_DELTA_BLOCK[i]))) {
-            return STEP_AMOUNT.mul(new BN(i + 1));
+            return FIRST_AMOUNT.add(STEP_AMOUNT.mul(new BN(i)));
         }
         blockNow = blockNow.add(STEP_DELTA_BLOCK[i]);
     }
