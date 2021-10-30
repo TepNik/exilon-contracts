@@ -30,6 +30,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         uint256 lpFee;
         uint256 distributeFee;
         uint256 burnFee;
+        uint256 marketingFee;
     }
 
     struct PoolInfo {
@@ -944,7 +945,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         poolInfo = _checkBuyRestrictionsOnStart(poolInfo);
 
         if (!_excludedFromPayingFees.contains(to)) {
-            fees.burnFee = (amount * 3) / 100;
+            fees.burnFee = amount / 100;
+            fees.marketingFee = (amount * 2) / 100;
 
             if (notFixedInternalTotalSupply == 0) {
                 fees.lpFee = (amount * 9) / 100;
@@ -959,6 +961,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             additionalToLp = _makeBurnAction(from, fees.burnFee);
         }
 
+        if (fees.marketingFee > 0) {
+            address _marketingAddress = marketingAddress;
+            _fixedBalances[_marketingAddress] += fees.marketingFee;
+
+            emit Transfer(from, _marketingAddress, fees.marketingFee);
+        }
+
         if (fees.lpFee > 0) {
             _distributeLpFee(from, fees.lpFee + additionalToLp, false, poolInfo);
         }
@@ -969,7 +978,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             _fixedBalances[reserveFeeAddress] += _reserveFee;
         }
 
-        transferAmount = amount - fees.burnFee - fees.lpFee - fees.distributeFee - _reserveFee;
+        transferAmount =
+            amount -
+            fees.burnFee -
+            fees.lpFee -
+            fees.distributeFee -
+            fees.marketingFee -
+            _reserveFee;
     }
 
     function _makeSellAction(
@@ -980,7 +995,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         uint256 notFixedInternalTotalSupply
     ) private returns (uint256 transferAmount, FeesInfo memory fees) {
         if (!_excludedFromPayingFees.contains(from)) {
-            fees.burnFee = (3 * amount) / 100;
+            fees.burnFee = amount / 100;
+            fees.marketingFee = (amount * 2) / 100;
 
             uint256 timeFromStart = block.timestamp - _startTimestamp;
             if (timeFromStart < 30 minutes) {
@@ -1016,6 +1032,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             additionalToLp = _makeBurnAction(from, fees.burnFee);
         }
 
+        if (fees.marketingFee > 0) {
+            address _marketingAddress = marketingAddress;
+            _fixedBalances[_marketingAddress] += fees.marketingFee;
+
+            emit Transfer(from, _marketingAddress, fees.marketingFee);
+        }
+
         if (fees.lpFee > 0) {
             PoolInfo memory poolInfo;
             poolInfo.dexPair = _dexPairExilonWeth;
@@ -1029,7 +1052,13 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             _fixedBalances[reserveFeeAddress] += _reserveFee;
         }
 
-        transferAmount = amount - fees.burnFee - fees.lpFee - fees.distributeFee - _reserveFee;
+        transferAmount =
+            amount -
+            fees.burnFee -
+            fees.lpFee -
+            fees.distributeFee -
+            fees.marketingFee -
+            _reserveFee;
     }
 
     function _makeTransferAction(
