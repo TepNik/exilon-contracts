@@ -32,16 +32,44 @@ contract ExilonAdmin is AccessControl {
         IExilon(exilonToken).excludeFromFeesDistribution(user);
     }
 
+    function excludeFromFeesDistributionArray(address[] calldata users) external onlyAdmin {
+        address _exilonToken = exilonToken;
+        for(uint256 i = 0; i < users.length; ++i) {
+            IExilon(_exilonToken).excludeFromFeesDistribution(users[i]);
+        }
+    }
+
     function includeToFeesDistribution(address user) external onlyAdmin {
         IExilon(exilonToken).includeToFeesDistribution(user);
+    }
+
+    function includeToFeesDistributionArray(address[] calldata users) external onlyAdmin {
+        address _exilonToken = exilonToken;
+        for(uint256 i = 0; i < users.length; ++i) {
+            IExilon(_exilonToken).includeToFeesDistribution(users[i]);
+        }
     }
 
     function excludeFromPayingFees(address user) external onlyAdmin {
         IExilon(exilonToken).excludeFromPayingFees(user);
     }
 
+    function excludeFromPayingFeesArray(address[] calldata users) external onlyAdmin {
+        address _exilonToken = exilonToken;
+        for(uint256 i = 0; i < users.length; ++i) {
+            IExilon(_exilonToken).excludeFromPayingFees(users[i]);
+        }
+    }
+
     function includeToPayingFees(address user) external onlyAdmin {
         IExilon(exilonToken).includeToPayingFees(user);
+    }
+
+    function includeToPayingFeesArray(address[] calldata users) external onlyAdmin {
+        address _exilonToken = exilonToken;
+        for(uint256 i = 0; i < users.length; ++i) {
+            IExilon(_exilonToken).includeToPayingFees(users[i]);
+        }
     }
 
     function setWethLimitForLpFee(uint256 newValue) external onlyAdmin {
