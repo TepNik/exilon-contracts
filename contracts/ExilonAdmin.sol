@@ -34,7 +34,7 @@ contract ExilonAdmin is AccessControl {
 
     function excludeFromFeesDistributionArray(address[] calldata users) external onlyAdmin {
         address _exilonToken = exilonToken;
-        for(uint256 i = 0; i < users.length; ++i) {
+        for (uint256 i = 0; i < users.length; ++i) {
             IExilon(_exilonToken).excludeFromFeesDistribution(users[i]);
         }
     }
@@ -45,7 +45,7 @@ contract ExilonAdmin is AccessControl {
 
     function includeToFeesDistributionArray(address[] calldata users) external onlyAdmin {
         address _exilonToken = exilonToken;
-        for(uint256 i = 0; i < users.length; ++i) {
+        for (uint256 i = 0; i < users.length; ++i) {
             IExilon(_exilonToken).includeToFeesDistribution(users[i]);
         }
     }
@@ -56,7 +56,7 @@ contract ExilonAdmin is AccessControl {
 
     function excludeFromPayingFeesArray(address[] calldata users) external onlyAdmin {
         address _exilonToken = exilonToken;
-        for(uint256 i = 0; i < users.length; ++i) {
+        for (uint256 i = 0; i < users.length; ++i) {
             IExilon(_exilonToken).excludeFromPayingFees(users[i]);
         }
     }
@@ -67,7 +67,7 @@ contract ExilonAdmin is AccessControl {
 
     function includeToPayingFeesArray(address[] calldata users) external onlyAdmin {
         address _exilonToken = exilonToken;
-        for(uint256 i = 0; i < users.length; ++i) {
+        for (uint256 i = 0; i < users.length; ++i) {
             IExilon(_exilonToken).includeToPayingFees(users[i]);
         }
     }

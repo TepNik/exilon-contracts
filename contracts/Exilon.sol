@@ -76,12 +76,12 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     // "external" balances for fixed addresses
     mapping(address => uint256) private _fixedBalances;
 
-    uint256 private constant _TOTAL_EXTERNAL_SUPPLY = 7 * 10**12 * 10**_DECIMALS;
+    uint256 private constant _TOTAL_EXTERNAL_SUPPLY = 5 * 10**12 * 10**_DECIMALS;
     // div by _TOTAL_EXTERNAL_SUPPLY is needed because
     // notFixedExternalTotalSupply * notFixedInternalTotalSupply
     // must fit into uint256
     uint256 private constant _MAX_INTERNAL_SUPPLY = type(uint256).max / _TOTAL_EXTERNAL_SUPPLY;
-    uint256 private constant _INITIAL_AMOUNT_TO_LIQUIDITY = (_TOTAL_EXTERNAL_SUPPLY * 65) / 100;
+    uint256 private constant _INITIAL_AMOUNT_TO_LIQUIDITY = (_TOTAL_EXTERNAL_SUPPLY * 50) / 100;
 
     // _notFixedInternalTotalSupply * _notFixedExternalTotalSupply <= type(uint256).max
     uint256 private _notFixedExternalTotalSupply;
