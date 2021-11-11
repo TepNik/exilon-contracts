@@ -31,6 +31,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         uint256 distributeFee;
         uint256 burnFee;
         uint256 marketingFee;
+        uint256 reserveFee;
     }
 
     struct PoolInfo {
@@ -948,6 +949,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             fees.burnFee = amount / 100;
             fees.marketingFee = (amount * 2) / 100;
 
+            fees.reserveFee = (amount * reserveFee) / 10000;
+
             if (notFixedInternalTotalSupply == 0) {
                 fees.lpFee = (amount * 9) / 100;
             } else {
@@ -972,10 +975,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             _distributeLpFee(from, fees.lpFee + additionalToLp, false, poolInfo);
         }
 
-        uint256 _reserveFee = reserveFee;
-        if (_reserveFee > 0) {
-            _reserveFee = (_reserveFee * amount) / 10000;
-            _fixedBalances[reserveFeeAddress] += _reserveFee;
+        if (fees.reserveFee > 0) {
+            _fixedBalances[reserveFeeAddress] += fees.reserveFee;
         }
 
         transferAmount =
@@ -984,7 +985,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             fees.lpFee -
             fees.distributeFee -
             fees.marketingFee -
-            _reserveFee;
+            fees.reserveFee;
     }
 
     function _makeSellAction(
@@ -997,6 +998,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         if (!_excludedFromPayingFees.contains(from)) {
             fees.burnFee = amount / 100;
             fees.marketingFee = (amount * 2) / 100;
+
+            fees.reserveFee = (amount * reserveFee) / 10000;
 
             uint256 timeFromStart = block.timestamp - _startTimestamp;
             if (timeFromStart < 30 minutes) {
@@ -1046,10 +1049,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             _distributeLpFee(from, fees.lpFee + additionalToLp, false, poolInfo);
         }
 
-        uint256 _reserveFee = reserveFee;
-        if (_reserveFee > 0) {
-            _reserveFee = (_reserveFee * amount) / 10000;
-            _fixedBalances[reserveFeeAddress] += _reserveFee;
+        if (fees.reserveFee > 0) {
+            _fixedBalances[reserveFeeAddress] += fees.reserveFee;
         }
 
         transferAmount =
@@ -1058,7 +1059,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             fees.lpFee -
             fees.distributeFee -
             fees.marketingFee -
-            _reserveFee;
+            fees.reserveFee;
     }
 
     function _makeTransferAction(
