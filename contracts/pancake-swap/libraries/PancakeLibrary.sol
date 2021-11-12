@@ -25,19 +25,6 @@ library PancakeLibrary {
         address tokenB
     ) internal view returns (address pair) {
         pair = IPancakeFactory(factory).getPair(tokenA, tokenB);
-        /* (address token0, address token1) = sortTokens(tokenA, tokenB);
-        pair = address(
-            uint256(
-                keccak256(
-                    abi.encodePacked(
-                        hex"ff",
-                        factory,
-                        keccak256(abi.encodePacked(token0, token1)),
-                        hex"d0d4c4cd0848c93cb4fd1f498d7013ee6bfb25783ea21593d5834f5d250ece66" // init code hash
-                    )
-                )
-            )
-        ); */
     }
 
     // fetches and sorts the reserves for a pair
@@ -72,9 +59,9 @@ library PancakeLibrary {
     ) internal pure returns (uint256 amountOut) {
         require(amountIn > 0, "PancakeLibrary: INSUFFICIENT_INPUT_AMOUNT");
         require(reserveIn > 0 && reserveOut > 0, "PancakeLibrary: INSUFFICIENT_LIQUIDITY");
-        uint256 amountInWithFee = amountIn * 998;
+        uint256 amountInWithFee = amountIn * 9975;
         uint256 numerator = amountInWithFee * reserveOut;
-        uint256 denominator = reserveIn * 1000 + amountInWithFee;
+        uint256 denominator = reserveIn * 10000 + amountInWithFee;
         amountOut = numerator / denominator;
     }
 
@@ -86,8 +73,8 @@ library PancakeLibrary {
     ) internal pure returns (uint256 amountIn) {
         require(amountOut > 0, "PancakeLibrary: INSUFFICIENT_OUTPUT_AMOUNT");
         require(reserveIn > 0 && reserveOut > 0, "PancakeLibrary: INSUFFICIENT_LIQUIDITY");
-        uint256 numerator = reserveIn * amountOut * 1000;
-        uint256 denominator = (reserveOut - amountOut) * 998;
+        uint256 numerator = reserveIn * amountOut * 10000;
+        uint256 denominator = (reserveOut - amountOut) * 9975;
         amountIn = (numerator / denominator) + 1;
     }
 
