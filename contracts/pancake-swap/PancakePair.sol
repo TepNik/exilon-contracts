@@ -114,8 +114,8 @@ contract PancakePair is IPancakePair, PancakeERC20 {
                 uint256 rootK = Math.sqrt(uint256(_reserve0) * _reserve1);
                 uint256 rootKLast = Math.sqrt(_kLast);
                 if (rootK > rootKLast) {
-                    uint256 numerator = totalSupply * (rootK - rootKLast);
-                    uint256 denominator = rootK * 3 + rootKLast;
+                    uint256 numerator = totalSupply * (rootK - rootKLast) * 8;
+                    uint256 denominator = rootK * 17 + rootKLast * 8;
                     uint256 liquidity = numerator / denominator;
                     if (liquidity > 0) _mint(feeTo, liquidity);
                 }
@@ -214,10 +214,10 @@ contract PancakePair is IPancakePair, PancakeERC20 {
         require(amount0In > 0 || amount1In > 0, "Pancake: INSUFFICIENT_INPUT_AMOUNT");
         {
             // scope for reserve{0,1}Adjusted, avoids stack too deep errors
-            uint256 balance0Adjusted = balance0 * 1000 - (amount0In * 2);
-            uint256 balance1Adjusted = balance1 * 1000 - (amount1In * 2);
+            uint256 balance0Adjusted = balance0 * 10000 - (amount0In * 25);
+            uint256 balance1Adjusted = balance1 * 10000 - (amount1In * 25);
             require(
-                balance0Adjusted * balance1Adjusted >= uint256(_reserve0) * _reserve1 * (1000**2),
+                balance0Adjusted * balance1Adjusted >= uint256(_reserve0) * _reserve1 * (10000**2),
                 "Pancake: K"
             );
         }
