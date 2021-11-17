@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.9;
+pragma solidity 0.8.10;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
@@ -69,6 +69,28 @@ contract ExilonAdmin is AccessControl {
         address _exilonToken = exilonToken;
         for (uint256 i = 0; i < users.length; ++i) {
             IExilon(_exilonToken).includeToPayingFees(users[i]);
+        }
+    }
+
+    function enableLowerCommissions(address user) external onlyAdmin {
+        IExilon(exilonToken).enableLowerCommissions(user);
+    }
+
+    function enableLowerCommissionsArray(address[] calldata users) external onlyAdmin {
+        address _exilonToken = exilonToken;
+        for (uint256 i = 0; i < users.length; ++i) {
+            IExilon(_exilonToken).enableLowerCommissions(users[i]);
+        }
+    }
+
+    function disableLowerCommissions(address user) external onlyAdmin {
+        IExilon(exilonToken).disableLowerCommissions(user);
+    }
+
+    function disableLowerCommissionsArray(address[] calldata users) external onlyAdmin {
+        address _exilonToken = exilonToken;
+        for (uint256 i = 0; i < users.length; ++i) {
+            IExilon(_exilonToken).disableLowerCommissions(users[i]);
         }
     }
 

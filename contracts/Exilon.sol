@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.9;
+pragma solidity 0.8.10;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -19,30 +18,7 @@ import "./WethReceiver.sol";
 
 import "./interfaces/IExilon.sol";
 
-// Maded by TepNik
-// https://github.com/TepNik/exilon-contracts
-// https://www.linkedin.com/in/nikita-tepelin/
-
 contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
-    using EnumerableSet for EnumerableSet.AddressSet;
-
-    struct FeesInfo {
-        uint256 lpFee;
-        uint256 distributeFee;
-        uint256 burnFee;
-        uint256 marketingFee;
-        uint256 reserveFee;
-    }
-
-    struct PoolInfo {
-        uint256 tokenReserves;
-        uint256 wethReserves;
-        uint256 wethBalance;
-        address dexPair;
-        address weth;
-        bool isToken0;
-    }
-
     /* STATE VARIABLES */
 
     // public data
@@ -57,7 +33,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     address public marketingAddress;
 
     uint256 public feeAmountInTokens;
-    uint256 public wethLimitForLpFee = 2 ether;
+    uint256 public wethLimitForLpFee = 1 ether;
     uint256 public immutable feeAmountInUsd;
 
     address public reserveFeeAddress;
@@ -68,7 +44,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     uint8 private constant _DECIMALS = 6;
 
     string private constant _NAME = "Exilon";
-    string private constant _SYMBOL = "XLN";
+    string private constant _SYMBOL = "EXL";
 
     mapping(address => mapping(address => uint256)) private _allowances;
 
@@ -82,7 +58,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     // notFixedExternalTotalSupply * notFixedInternalTotalSupply
     // must fit into uint256
     uint256 private constant _MAX_INTERNAL_SUPPLY = type(uint256).max / _TOTAL_EXTERNAL_SUPPLY;
-    uint256 private constant _INITIAL_AMOUNT_TO_LIQUIDITY = (_TOTAL_EXTERNAL_SUPPLY * 50) / 100;
+    uint256 private constant _INITIAL_AMOUNT_TO_LIQUIDITY = (_TOTAL_EXTERNAL_SUPPLY * 40) / 100;
 
     // _notFixedInternalTotalSupply * _notFixedExternalTotalSupply <= type(uint256).max
     uint256 private _notFixedExternalTotalSupply;
@@ -96,8 +72,9 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     uint256 private _startTimestamp;
 
     // addresses that exluded from distribution of fees from transfers (have fixed balances)
-    EnumerableSet.AddressSet private _excludedFromDistribution;
-    EnumerableSet.AddressSet private _excludedFromPayingFees;
+    mapping(address => bool) public isExcludedFromDistribution;
+    mapping(address => bool) public isExcludedFromPayingFees;
+    mapping(address => bool) public isHavingLowerCommissions;
 
     /* MODIFIERS */
 
@@ -119,6 +96,9 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     event ExcludedFromPayingFees(address indexed user);
     event IncludedToPayingFees(address indexed user);
 
+    event EnabledLowerCommissions(address indexed user);
+    event DisabledLowerCommissions(address indexed user);
+
     event ChangeWethLimitForLpFee(uint256 oldValue, uint256 newValue);
     event ChangeDefaultLpMintAddress(address indexed oldValue, address indexed newValue);
     event ChangeMarketingAddress(address oldValue, address newValue);
@@ -128,6 +108,25 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     event LiquidityAdded(uint256 amount);
 
     event TokenDistribution(uint256 amount);
+
+    /* STRUCTS */
+
+    struct FeesInfo {
+        uint256 lpFee;
+        uint256 distributeFee;
+        uint256 burnFee;
+        uint256 marketingFee;
+        uint256 reserveFee;
+    }
+
+    struct PoolInfo {
+        uint256 tokenReserves;
+        uint256 wethReserves;
+        uint256 wethBalance;
+        address dexPair;
+        address weth;
+        bool isToken0;
+    }
 
     /* FUNCTIONS */
 
@@ -162,12 +161,12 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         // add LP pair and burn address to excludedFromDistribution
-        _excludedFromDistribution.add(_dexPairExilonWeth);
-        _excludedFromDistribution.add(address(0xdead));
-        _excludedFromDistribution.add(_marketingAddress);
+        isExcludedFromDistribution[_dexPairExilonWeth] = true;
+        isExcludedFromDistribution[address(0xdead)] = true;
+        isExcludedFromDistribution[_marketingAddress] = true;
 
         // _fixedBalances[address(this)] only used for adding liquidity
-        _excludedFromDistribution.add(address(this));
+        isExcludedFromDistribution[address(this)] = true;
         _fixedBalances[address(this)] = _INITIAL_AMOUNT_TO_LIQUIDITY;
         // add changes to transfer _INITIAL_AMOUNT_TO_LIQUIDITY amount from NotFixed to Fixed account
         // because LP pair is exluded from distribution
@@ -217,7 +216,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
 
         uint256 amountToLiquidity = _fixedBalances[address(this)];
         delete _fixedBalances[address(this)];
-        _excludedFromDistribution.remove(address(this));
+        isExcludedFromDistribution[address(this)] = false;
 
         address _dexPairExilonWeth = dexPairExilonWeth;
         _fixedBalances[_dexPairExilonWeth] = amountToLiquidity;
@@ -275,7 +274,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         uint256 notFixedExternalTotalSupply = _notFixedExternalTotalSupply;
         require(notFixedExternalTotalSupply != 0, "Exilon: Distribution to nobody");
 
-        if (_excludedFromDistribution.contains(msg.sender)) {
+        if (isExcludedFromDistribution[msg.sender]) {
             uint256 fixedUserBalance = _fixedBalances[msg.sender];
             require(fixedUserBalance >= amount, "Exilon: Not enough balance");
 
@@ -305,7 +304,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         onlyWhenLiquidityAdded
         onlyAdmin
     {
-        require(_excludedFromDistribution.add(user) == true, "Exilon: Already excluded");
+        require(!isExcludedFromDistribution[user], "Exilon: Already excluded");
+        isExcludedFromDistribution[user] = true;
 
         uint256 notFixedUserBalance = _notFixedBalances[user];
         if (notFixedUserBalance > 0) {
@@ -341,7 +341,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
                 user != reserveFeeAddress,
             "Exilon: Wrong address"
         );
-        require(_excludedFromDistribution.remove(user) == true, "Exilon: Already included");
+        require(isExcludedFromDistribution[user], "Exilon: Already included");
+        isExcludedFromDistribution[user] = false;
 
         uint256 fixedUserBalance = _fixedBalances[user];
         if (fixedUserBalance > 0) {
@@ -381,16 +382,34 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
 
     function excludeFromPayingFees(address user) external override onlyAdmin {
         require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
-        require(_excludedFromPayingFees.add(user) == true, "Exilon: Already excluded");
+        require(!isExcludedFromPayingFees[user], "Exilon: Already excluded");
+        isExcludedFromPayingFees[user] = true;
 
         emit ExcludedFromPayingFees(user);
     }
 
     function includeToPayingFees(address user) external override onlyAdmin {
         require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
-        require(_excludedFromPayingFees.remove(user) == true, "Exilon: Already included");
+        require(isExcludedFromPayingFees[user], "Exilon: Already included");
+        isExcludedFromPayingFees[user] = false;
 
         emit IncludedToPayingFees(user);
+    }
+
+    function enableLowerCommissions(address user) external override onlyAdmin {
+        require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
+        require(isHavingLowerCommissions[user], "Exilon: Already included");
+        isHavingLowerCommissions[user] = false;
+
+        emit EnabledLowerCommissions(user);
+    }
+
+    function disableLowerCommissions(address user) external override onlyAdmin {
+        require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
+        require(isHavingLowerCommissions[user], "Exilon: Already included");
+        isHavingLowerCommissions[user] = false;
+
+        emit DisabledLowerCommissions(user);
     }
 
     function setWethLimitForLpFee(uint256 newValue) external override onlyAdmin {
@@ -414,10 +433,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     }
 
     function setMarketingAddress(address newValue) external override onlyAdmin {
-        require(
-            _excludedFromDistribution.contains(newValue),
-            "Exilon: Marketing address must be fixed"
-        );
+        require(isExcludedFromDistribution[newValue], "Exilon: Marketing address must be fixed");
         address oldValue = marketingAddress;
         marketingAddress = newValue;
 
@@ -427,7 +443,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     function setReserveFeeParameters(address _reserveFeeAddress, uint256 _reserveFee) external {
         if (_reserveFee > 0) {
             require(
-                _excludedFromDistribution.contains(_reserveFeeAddress),
+                isExcludedFromDistribution[_reserveFeeAddress],
                 "Exilon: Reserve fee address must be fixed"
             );
             require(
@@ -457,7 +473,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     }
 
     function balanceOf(address account) external view virtual override returns (uint256) {
-        if (_excludedFromDistribution.contains(account) == true) {
+        if (isExcludedFromDistribution[account]) {
             return _fixedBalances[account];
         } else {
             return
@@ -474,30 +490,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         returns (uint256)
     {
         return _allowances[owner][spender];
-    }
-
-    function excludedFromDistributionLen() external view returns (uint256) {
-        return _excludedFromDistribution.length();
-    }
-
-    function getExcludedFromDistributionAt(uint256 index) external view returns (address) {
-        return _excludedFromDistribution.at(index);
-    }
-
-    function isExcludedFromDistribution(address user) external view returns (bool) {
-        return _excludedFromDistribution.contains(user);
-    }
-
-    function excludedFromPayingFeesLen() external view returns (uint256) {
-        return _excludedFromPayingFees.length();
-    }
-
-    function getExcludedFromPayingFeesAt(uint256 index) external view returns (address) {
-        return _excludedFromPayingFees.at(index);
-    }
-
-    function isExcludedFromPayingFees(address user) external view returns (bool) {
-        return _excludedFromPayingFees.contains(user);
     }
 
     /* PUBLIC FUNCTIONS */
@@ -523,8 +515,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         address to,
         uint256 amount
     ) private {
-        bool isFromFixed = _excludedFromDistribution.contains(from);
-        bool isToFixed = _excludedFromDistribution.contains(to);
+        bool isFromFixed = isExcludedFromDistribution[from];
+        bool isToFixed = isExcludedFromDistribution[to];
 
         if (isFromFixed == true && isToFixed == true) {
             _transferFromFixedToFixed(from, to, amount);
@@ -945,17 +937,24 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         poolInfo.weth = _weth;
         poolInfo = _checkBuyRestrictionsOnStart(poolInfo);
 
-        if (!_excludedFromPayingFees.contains(to)) {
-            fees.burnFee = amount / 100;
-            fees.marketingFee = (amount * 2) / 100;
+        if (!isExcludedFromPayingFees[to]) {
+            uint256 multiplier;
+            if (isHavingLowerCommissions[from]) {
+                multiplier = 10;
+            } else {
+                multiplier = 100;
+            }
 
-            fees.reserveFee = (amount * reserveFee) / 10000;
+            fees.burnFee = (amount * multiplier) / 10000;
+            fees.marketingFee = (amount * 2 * multiplier) / 10000;
+
+            fees.reserveFee = (amount * reserveFee * multiplier) / 10000;
 
             if (notFixedInternalTotalSupply == 0) {
-                fees.lpFee = (amount * 9) / 100;
+                fees.lpFee = (amount * 9 * multiplier) / 10000;
             } else {
-                fees.distributeFee = amount / 100;
-                fees.lpFee = (amount * 8) / 100;
+                fees.distributeFee = (amount * multiplier) / 10000;
+                fees.lpFee = (amount * 8 * multiplier) / 10000;
             }
         }
 
@@ -995,11 +994,18 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         bool isSellingBig,
         uint256 notFixedInternalTotalSupply
     ) private returns (uint256 transferAmount, FeesInfo memory fees) {
-        if (!_excludedFromPayingFees.contains(from)) {
-            fees.burnFee = amount / 100;
-            fees.marketingFee = (amount * 2) / 100;
+        if (!isExcludedFromPayingFees[from]) {
+            uint256 multiplier;
+            if (isHavingLowerCommissions[from]) {
+                multiplier = 10;
+            } else {
+                multiplier = 100;
+            }
 
-            fees.reserveFee = (amount * reserveFee) / 10000;
+            fees.burnFee = (amount * multiplier) / 10000;
+            fees.marketingFee = (amount * 2 * multiplier) / 10000;
+
+            fees.reserveFee = (amount * reserveFee * multiplier) / 10000;
 
             uint256 timeFromStart = block.timestamp - _startTimestamp;
             if (timeFromStart < 30 minutes) {
@@ -1023,10 +1029,10 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             }
 
             if (notFixedInternalTotalSupply == 0) {
-                fees.lpFee = ((fees.lpFee + 1) * amount) / 100;
+                fees.lpFee = ((fees.lpFee + 1) * amount * multiplier) / 10000;
             } else {
-                fees.lpFee = (fees.lpFee * amount) / 100;
-                fees.distributeFee = amount / 100;
+                fees.lpFee = (fees.lpFee * amount * multiplier) / 10000;
+                fees.distributeFee = (amount * multiplier) / 10000;
             }
         }
 
@@ -1068,7 +1074,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         address to,
         uint256 amount
     ) private returns (uint256 transferAmount, uint256 feeAmount) {
-        if (_excludedFromPayingFees.contains(from) || _excludedFromPayingFees.contains(to)) {
+        if (isExcludedFromPayingFees[from] || isExcludedFromPayingFees[to]) {
             return (amount, 0);
         }
 

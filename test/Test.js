@@ -40,10 +40,10 @@ const DEADLINE = new BN("10000000000000000000");
 const BURN_ADDRESS = "0x000000000000000000000000000000000000dEaD";
 
 const NAME = "Exilon";
-const SYMBOL = "XLN";
+const SYMBOL = "EXL";
 const TOTAL_SUPPLY = new BN("5000000000000").mul(ONE_TOKEN);
 
-const AMOUNT_TO_LIQUIDITY = new BN("50");
+const AMOUNT_TO_LIQUIDITY = new BN("40");
 
 const FIRST_AMOUNT = ONE_ETH.div(TEN);
 const STEP_AMOUNT = ONE_ETH.div(TEN).mul(TWO);
@@ -173,7 +173,7 @@ describe("Exilon contract tests", () => {
 
         expect(await ExilonInst.totalSupply()).to.be.bignumber.equals(TOTAL_SUPPLY);
 
-        expect(await ExilonInst.wethLimitForLpFee()).to.be.bignumber.equals(TWO.mul(ONE_ETH));
+        expect(await ExilonInst.wethLimitForLpFee()).to.be.bignumber.equals(ONE.mul(ONE_ETH));
 
         expect(await ExilonInst.hasRole(defaultAdminRole, exilonAdmin)).to.be.true;
 
@@ -1295,7 +1295,6 @@ describe("Exilon contract tests", () => {
             "Exilon: Already included"
         );
 
-        expect(await ExilonInst.excludedFromPayingFeesLen()).to.be.bignumber.equals(ZERO);
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress1)).to.be.false;
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress2)).to.be.false;
 
@@ -1305,10 +1304,6 @@ describe("Exilon contract tests", () => {
             "Exilon: Already excluded"
         );
 
-        expect(await ExilonInst.excludedFromPayingFeesLen()).to.be.bignumber.equals(ONE);
-        expect(await ExilonInst.getExcludedFromPayingFeesAt(ZERO)).to.be.bignumber.equals(
-            distributionAddress1
-        );
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress1)).to.be.true;
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress2)).to.be.false;
 
@@ -1318,7 +1313,6 @@ describe("Exilon contract tests", () => {
             "Exilon: Already included"
         );
 
-        expect(await ExilonInst.excludedFromPayingFeesLen()).to.be.bignumber.equals(ZERO);
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress1)).to.be.false;
         expect(await ExilonInst.isExcludedFromPayingFees(distributionAddress2)).to.be.false;
     });

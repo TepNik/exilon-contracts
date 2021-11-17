@@ -15,6 +15,10 @@ interface IExilon {
 
     function includeToPayingFees(address user) external;
 
+    function enableLowerCommissions(address user) external;
+
+    function disableLowerCommissions(address user) external;
+
     function setWethLimitForLpFee(uint256 newValue) external;
 
     function setDefaultLpMintAddress(address newValue) external;
