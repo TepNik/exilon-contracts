@@ -948,7 +948,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             fees.burnFee = (amount * multiplier) / 10000;
             fees.marketingFee = (amount * 2 * multiplier) / 10000;
 
-            fees.reserveFee = (amount * reserveFee * multiplier) / 10000;
+            fees.reserveFee = (amount * reserveFee * multiplier) / (10000 * 100);
 
             if (notFixedInternalTotalSupply == 0) {
                 fees.lpFee = (amount * 9 * multiplier) / 10000;
@@ -1005,7 +1005,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             fees.burnFee = (amount * multiplier) / 10000;
             fees.marketingFee = (amount * 2 * multiplier) / 10000;
 
-            fees.reserveFee = (amount * reserveFee * multiplier) / 10000;
+            fees.reserveFee = (amount * reserveFee * multiplier) / (10000 * 100);
 
             uint256 timeFromStart = block.timestamp - _startTimestamp;
             if (timeFromStart < 30 minutes) {
