@@ -398,8 +398,8 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
 
     function enableLowerCommissions(address user) external override onlyAdmin {
         require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
-        require(isHavingLowerCommissions[user], "Exilon: Already included");
-        isHavingLowerCommissions[user] = false;
+        require(!isHavingLowerCommissions[user], "Exilon: Already included");
+        isHavingLowerCommissions[user] = true;
 
         emit EnabledLowerCommissions(user);
     }

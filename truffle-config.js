@@ -14,6 +14,7 @@ const {
     BSC_MAINNET_GASPRICE,
     MATIC_MAINNET_GASPRICE,
     TESTNETS_GASPRICE,
+    PRIVATE_KEY
 } = process.env;
 
 const Web3 = require("web3");
@@ -81,6 +82,10 @@ module.exports = {
             skipDryRun: true,
         },
         bsc: {
+            provider: () => new HDWalletProvider({
+                privateKeys: [PRIVATE_KEY],
+                providerOrUrl: 'https://bsc-dataseed3.binance.org' + INFURA_ID_PROJECT
+            }),
             provider: () => new HDWalletProvider(MNEMONIC, "https://bsc-dataseed3.binance.org"),
             network_id: 56,
             confirmations: 2,
