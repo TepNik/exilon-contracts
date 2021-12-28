@@ -3,6 +3,8 @@
 pragma solidity ^0.8.0;
 
 interface IExilon {
+    function isExcludedFromPayingFees(address user) external view returns (bool);
+
     function addLiquidity() external payable;
 
     function forceLpFeesDistribute() external;

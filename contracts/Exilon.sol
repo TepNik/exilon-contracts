@@ -71,7 +71,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
     uint256 private _startBlock;
     uint256 private _startTimestamp;
 
-    // addresses that exluded from distribution of fees from transfers (have fixed balances)
+    // addresses that excluded from distribution of fees from transfers (have fixed balances)
     mapping(address => bool) public isExcludedFromDistribution;
     mapping(address => bool) public isExcludedFromPayingFees;
     mapping(address => bool) public isHavingLowerCommissions;
@@ -80,11 +80,6 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
 
     modifier onlyWhenLiquidityAdded() {
         require(_isLpAdded == 1, "Exilon: Liquidity not added");
-        _;
-    }
-
-    modifier onlyAdmin() {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Exilon: Sender is not admin");
         _;
     }
 
@@ -169,7 +164,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         isExcludedFromDistribution[address(this)] = true;
         _fixedBalances[address(this)] = _INITIAL_AMOUNT_TO_LIQUIDITY;
         // add changes to transfer _INITIAL_AMOUNT_TO_LIQUIDITY amount from NotFixed to Fixed account
-        // because LP pair is exluded from distribution
+        // because LP pair is excluded from distribution
         uint256 notFixedExternalTotalSupply = _TOTAL_EXTERNAL_SUPPLY;
 
         uint256 notFixedInternalTotalSupply = _MAX_INTERNAL_SUPPLY;
@@ -207,7 +202,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
 
     /* EXTERNAL FUNCTIONS */
 
-    function addLiquidity() external payable override onlyAdmin {
+    function addLiquidity() external payable override onlyRole(DEFAULT_ADMIN_ROLE) {
         require(_isLpAdded == 0, "Exilon: Only once");
         _isLpAdded = 1;
 
@@ -236,6 +231,21 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         return true;
     }
 
+    function increaseAllowance(address spender, uint256 addedValue) external virtual returns (bool) {
+        _approve(msg.sender, spender, _allowances[msg.sender][spender] + addedValue);
+        return true;
+    }
+
+    function decreaseAllowance(address spender, uint256 subtractedValue) external virtual returns (bool) {
+        uint256 currentAllowance = _allowances[msg.sender][spender];
+        require(currentAllowance >= subtractedValue, "Exilon: Below zero");
+        unchecked {
+            _approve(msg.sender, spender, currentAllowance - subtractedValue);
+        }
+
+        return true;
+    }
+
     function transfer(address recipient, uint256 amount)
         external
         virtual
@@ -261,7 +271,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         return true;
     }
 
-    function forceLpFeesDistribute() external override onlyWhenLiquidityAdded onlyAdmin {
+    function forceLpFeesDistribute() external override onlyWhenLiquidityAdded onlyRole(DEFAULT_ADMIN_ROLE) {
         PoolInfo memory poolInfo;
         poolInfo.dexPair = dexPairExilonWeth;
         poolInfo.weth = _weth;
@@ -278,7 +288,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
             uint256 fixedUserBalance = _fixedBalances[msg.sender];
             require(fixedUserBalance >= amount, "Exilon: Not enough balance");
 
-            _notFixedBalances[msg.sender] = fixedUserBalance - amount;
+            _fixedBalances[msg.sender] = fixedUserBalance - amount;
             _notFixedExternalTotalSupply = notFixedExternalTotalSupply + amount;
         } else {
             uint256 notFixedInternalTotalSupply = _notFixedInternalTotalSupply;
@@ -302,7 +312,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         external
         override
         onlyWhenLiquidityAdded
-        onlyAdmin
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {
         require(!isExcludedFromDistribution[user], "Exilon: Already excluded");
         isExcludedFromDistribution[user] = true;
@@ -332,7 +342,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         external
         override
         onlyWhenLiquidityAdded
-        onlyAdmin
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {
         require(
             user != address(0xdead) &&
@@ -380,7 +390,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         emit IncludedToFeesDistribution(user);
     }
 
-    function excludeFromPayingFees(address user) external override onlyAdmin {
+    function excludeFromPayingFees(address user) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
         require(!isExcludedFromPayingFees[user], "Exilon: Already excluded");
         isExcludedFromPayingFees[user] = true;
@@ -388,7 +398,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         emit ExcludedFromPayingFees(user);
     }
 
-    function includeToPayingFees(address user) external override onlyAdmin {
+    function includeToPayingFees(address user) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
         require(isExcludedFromPayingFees[user], "Exilon: Already included");
         isExcludedFromPayingFees[user] = false;
@@ -396,7 +406,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         emit IncludedToPayingFees(user);
     }
 
-    function enableLowerCommissions(address user) external override onlyAdmin {
+    function enableLowerCommissions(address user) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
         require(!isHavingLowerCommissions[user], "Exilon: Already included");
         isHavingLowerCommissions[user] = true;
@@ -404,7 +414,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         emit EnabledLowerCommissions(user);
     }
 
-    function disableLowerCommissions(address user) external override onlyAdmin {
+    function disableLowerCommissions(address user) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         require(user != address(0xdead) && user != dexPairExilonWeth, "Exilon: Wrong address");
         require(isHavingLowerCommissions[user], "Exilon: Already included");
         isHavingLowerCommissions[user] = false;
@@ -412,7 +422,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         emit DisabledLowerCommissions(user);
     }
 
-    function setWethLimitForLpFee(uint256 newValue) external override onlyAdmin {
+    function setWethLimitForLpFee(uint256 newValue) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         require(newValue <= 10 ether, "Exilon: Too big value");
         uint256 oldValue = wethLimitForLpFee;
         wethLimitForLpFee = newValue;
@@ -420,19 +430,19 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         emit ChangeWethLimitForLpFee(oldValue, newValue);
     }
 
-    function setDefaultLpMintAddress(address newValue) external override onlyAdmin {
+    function setDefaultLpMintAddress(address newValue) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         address oldValue = defaultLpMintAddress;
         defaultLpMintAddress = newValue;
 
         emit ChangeDefaultLpMintAddress(oldValue, newValue);
     }
 
-    function setWethReceiver(address value) external onlyAdmin {
+    function setWethReceiver(address value) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(wethReceiver == address(0) && value != address(0), "Exilon: Only once");
         wethReceiver = value;
     }
 
-    function setMarketingAddress(address newValue) external override onlyAdmin {
+    function setMarketingAddress(address newValue) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         require(isExcludedFromDistribution[newValue], "Exilon: Marketing address must be fixed");
         address oldValue = marketingAddress;
         marketingAddress = newValue;
@@ -440,7 +450,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         emit ChangeMarketingAddress(oldValue, newValue);
     }
 
-    function setReserveFeeParameters(address _reserveFeeAddress, uint256 _reserveFee) external {
+    function setReserveFeeParameters(address _reserveFeeAddress, uint256 _reserveFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_reserveFee > 0) {
             require(
                 isExcludedFromDistribution[_reserveFeeAddress],
@@ -939,7 +949,7 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
 
         if (!isExcludedFromPayingFees[to]) {
             uint256 multiplier;
-            if (isHavingLowerCommissions[from]) {
+            if (isHavingLowerCommissions[to]) {
                 multiplier = 10;
             } else {
                 multiplier = 100;
