@@ -221,10 +221,7 @@ describe("Exilon contract tests", () => {
             "Exilon: Liquidity not added"
         );
 
-        await expectRevert(
-            ExilonInst.addLiquidity({ from: distributionAddress1 }),
-            "Exilon: Sender is not admin"
-        );
+        await expectRevert.unspecified(ExilonInst.addLiquidity({ from: distributionAddress1 }));
         await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH });
         await expectRevert(ExilonInst.addLiquidity({ from: exilonAdmin }), "Exilon: Only once");
 
@@ -1175,9 +1172,8 @@ describe("Exilon contract tests", () => {
         let tx = await ExilonInst.addLiquidity({ from: exilonAdmin, value: ONE_ETH.mul(TEN) });
         let blocknumber = new BN(tx.receipt.blockNumber);
 
-        await expectRevert(
-            ExilonInst.forceLpFeesDistribute({ from: distributionAddress1 }),
-            "Exilon: Sender is not admin"
+        await expectRevert.unspecified(
+            ExilonInst.forceLpFeesDistribute({ from: distributionAddress1 })
         );
 
         await time.advanceBlockTo(blocknumber.add(new BN("240")));
@@ -1200,9 +1196,8 @@ describe("Exilon contract tests", () => {
     });
 
     it("setWethReceiver()", async () => {
-        await expectRevert(
-            ExilonInst.setWethReceiver(BURN_ADDRESS, { from: distributionAddress1 }),
-            "Exilon: Sender is not admin"
+        await expectRevert.unspecified(
+            ExilonInst.setWethReceiver(BURN_ADDRESS, { from: distributionAddress1 })
         );
 
         await expectRevert(
@@ -1212,9 +1207,8 @@ describe("Exilon contract tests", () => {
     });
 
     it("setDefaultLpMintAddress()", async () => {
-        await expectRevert(
-            ExilonInst.setDefaultLpMintAddress(BURN_ADDRESS, { from: distributionAddress1 }),
-            "Exilon: Sender is not admin"
+        await expectRevert.unspecified(
+            ExilonInst.setDefaultLpMintAddress(BURN_ADDRESS, { from: distributionAddress1 })
         );
 
         await ExilonInst.setDefaultLpMintAddress(BURN_ADDRESS, { from: exilonAdmin });
@@ -1222,9 +1216,8 @@ describe("Exilon contract tests", () => {
     });
 
     it("setWethLimitForLpFee()", async () => {
-        await expectRevert(
-            ExilonInst.setWethLimitForLpFee(ZERO, { from: distributionAddress1 }),
-            "Exilon: Sender is not admin"
+        await expectRevert.unspecified(
+            ExilonInst.setWethLimitForLpFee(ZERO, { from: distributionAddress1 })
         );
 
         await ExilonInst.setWethLimitForLpFee(ONE, { from: exilonAdmin });
@@ -1238,11 +1231,10 @@ describe("Exilon contract tests", () => {
         await makeFixedAddress(distributionAddress7);
         await makeFixedAddress(distributionAddress8);
 
-        await expectRevert(
+        await expectRevert.unspecified(
             ExilonInst.excludeFromFeesDistribution(distributionAddress1, {
                 from: distributionAddress1,
-            }),
-            "Exilon: Sender is not admin"
+            })
         );
 
         // test exclude from fees distribution
@@ -1285,9 +1277,8 @@ describe("Exilon contract tests", () => {
     });
 
     it("excludeFromPayingFees() and includeToPayingFees()", async () => {
-        await expectRevert(
-            ExilonInst.excludeFromPayingFees(distributionAddress2, { from: distributionAddress1 }),
-            "Exilon: Sender is not admin"
+        await expectRevert.unspecified(
+            ExilonInst.excludeFromPayingFees(distributionAddress2, { from: distributionAddress1 })
         );
 
         await expectRevert(
@@ -1322,11 +1313,10 @@ describe("Exilon contract tests", () => {
         expect(await ExilonInst.marketingAddress()).to.be.equals(marketingAddress);
         expect(await ExilonInst.isExcludedFromDistribution(marketingAddress)).to.be.true;
 
-        await expectRevert(
+        await expectRevert.unspecified(
             ExilonInst.setMarketingAddress(distributionAddress1, {
                 from: distributionAddress1,
-            }),
-            "Exilon: Sender is not admin"
+            })
         );
         await expectRevert(
             ExilonInst.setMarketingAddress(distributionAddress1, { from: exilonAdmin }),

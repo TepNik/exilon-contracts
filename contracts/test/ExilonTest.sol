@@ -13,7 +13,7 @@ contract ExilonTest is Exilon {
         address _marketingAddress
     ) Exilon(_dexRouter, _usdAddress, toDistribute, _defaultLpMintAddress, _marketingAddress) {}
 
-    function setWethLimitForLpFeeTest(uint256 value) external onlyAdmin {
+    function setWethLimitForLpFeeTest(uint256 value) external onlyRole(DEFAULT_ADMIN_ROLE) {
         wethLimitForLpFee = value;
     }
 }

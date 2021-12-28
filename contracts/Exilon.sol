@@ -231,12 +231,20 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         return true;
     }
 
-    function increaseAllowance(address spender, uint256 addedValue) external virtual returns (bool) {
+    function increaseAllowance(address spender, uint256 addedValue)
+        external
+        virtual
+        returns (bool)
+    {
         _approve(msg.sender, spender, _allowances[msg.sender][spender] + addedValue);
         return true;
     }
 
-    function decreaseAllowance(address spender, uint256 subtractedValue) external virtual returns (bool) {
+    function decreaseAllowance(address spender, uint256 subtractedValue)
+        external
+        virtual
+        returns (bool)
+    {
         uint256 currentAllowance = _allowances[msg.sender][spender];
         require(currentAllowance >= subtractedValue, "Exilon: Below zero");
         unchecked {
@@ -271,7 +279,12 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         return true;
     }
 
-    function forceLpFeesDistribute() external override onlyWhenLiquidityAdded onlyRole(DEFAULT_ADMIN_ROLE) {
+    function forceLpFeesDistribute()
+        external
+        override
+        onlyWhenLiquidityAdded
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         PoolInfo memory poolInfo;
         poolInfo.dexPair = dexPairExilonWeth;
         poolInfo.weth = _weth;
@@ -430,7 +443,11 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         emit ChangeWethLimitForLpFee(oldValue, newValue);
     }
 
-    function setDefaultLpMintAddress(address newValue) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setDefaultLpMintAddress(address newValue)
+        external
+        override
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         address oldValue = defaultLpMintAddress;
         defaultLpMintAddress = newValue;
 
@@ -450,7 +467,10 @@ contract Exilon is IERC20, IERC20Metadata, AccessControl, IExilon {
         emit ChangeMarketingAddress(oldValue, newValue);
     }
 
-    function setReserveFeeParameters(address _reserveFeeAddress, uint256 _reserveFee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setReserveFeeParameters(address _reserveFeeAddress, uint256 _reserveFee)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         if (_reserveFee > 0) {
             require(
                 isExcludedFromDistribution[_reserveFeeAddress],
